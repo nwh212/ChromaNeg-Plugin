@@ -86,7 +86,7 @@ Details are in `src/convert.rs`. In short, everything works in density (`−log1
 4. The normalised log exposure goes through the look and the tone profile, then back to linear light.
 
 Speed: the logarithm and the tone curve are lookup tables. In the app's interpreter, a
-2.7 MP render takes about 2 s and Measure under 1 s (v0.1: 3.6 s per render).
+2.7 MP render takes about 2 s (v0.1: 3.6 s), and Measure about 1 s: it reads at most 300 000 pixels, with each density computed once.
 
 ## Not done yet
 

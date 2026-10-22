@@ -241,12 +241,14 @@ pub struct Analysis {
     /// from the thin end and the dense end.
     pub lum_lo: [f32; 7],
     pub lum_hi: [f32; 7],
+    /// The sample grid measured (width, height, step in pixels): a diagnostic, not used by the conversion.
+    pub measured: [u32; 3],
 }
 
 impl Analysis {
     pub fn to_json(&self) -> Value {
         json!({"version": ANALYSIS_VERSION, "percentiles": PERCENTILES, "lo": self.lo, "hi": self.hi,
-               "gain": self.gain, "lumLo": self.lum_lo, "lumHi": self.lum_hi})
+               "gain": self.gain, "lumLo": self.lum_lo, "lumHi": self.lum_hi, "measured": self.measured})
     }
 
     pub fn from_json(v: &Value) -> Option<Analysis> {
@@ -269,16 +271,24 @@ impl Analysis {
         if gain.iter().any(|g| !(0.05..=20.0).contains(g)) {
             return None;
         }
-        Some(Analysis { lo: table("lo")?, hi: table("hi")?, gain, lum_lo: floats(v.get("lumLo")?)?, lum_hi: floats(v.get("lumHi")?)? })
+        Some(Analysis {
+            lo: table("lo")?,
+            hi: table("hi")?,
+            gain,
+            lum_lo: floats(v.get("lumLo")?)?,
+            lum_hi: floats(v.get("lumHi")?)?,
+            measured: v.get("measured").and_then(|m| serde_json::from_value(m.clone()).ok()).unwrap_or_default(),
+        })
     }
 
     /// What we assume before the photo is measured: no mask, two density units of range, no
     /// balance. The result keeps the film's cast, which is the cue to press Measure.
     fn unmeasured() -> Analysis {
-        Analysis { lo: [[0.1; 7]; 4], hi: [[2.1; 7]; 4], gain: [1.0; 3], lum_lo: [0.0; 7], lum_hi: [2.0; 7] }
+        Analysis { lo: [[0.1; 7]; 4], hi: [[2.1; 7]; 4], gain: [1.0; 3], lum_lo: [0.0; 7], lum_hi: [2.0; 7], measured: [0; 3] }
     }
 }
 
+#[cfg(test)]
 fn density(x: f32) -> f32 {
     -x.max(FLOOR).log10()
 }
@@ -332,28 +342,42 @@ impl Hist {
     }
 }
 
+/// Most pixels the measurement reads: plenty for histograms, and it keeps Measure well inside the
+/// host's instruction budget whatever size it is handed.
+const MAX_SAMPLES: usize = 300_000;
+
 /// Measures `px` (interleaved linear RGB, `w × h`, the whole uncropped photo) inside the border buffer.
 pub fn analyze(px: &[f32], w: usize, h: usize, p: &Params) -> Analysis {
     let inset = |n: usize| ((n as f32 * p.border / 100.0) as usize).min(n.saturating_sub(1) / 2);
     let (ix, iy) = (inset(w), inset(h));
     let (x0, x1, y0, y1) = (ix, w.saturating_sub(ix), iy, h.saturating_sub(iy));
-    let at = |x: usize, y: usize| -> Option<[f32; 3]> {
-        let c = px.get((y * w + x) * 3..(y * w + x) * 3 + 3)?;
-        Some([density(c[0]), density(c[1]), density(c[2])])
-    };
+    // every `step`-th pixel each way, densities computed once
+    let area = (x1 - x0).saturating_mul(y1 - y0);
+    let step = ((area as f64 / MAX_SAMPLES as f64).sqrt().ceil() as usize).max(1);
+    let (gw, gh) = ((x1 - x0).div_ceil(step), (y1 - y0).div_ceil(step));
+    let log = FastLog::new();
+    let mut grid: Vec<[f32; 3]> = Vec::with_capacity(gw * gh);
+    for gy in 0..gh {
+        for gx in 0..gw {
+            let i = ((y0 + gy * step) * w + x0 + gx * step) * 3;
+            let d = px.get(i..i + 3).map(|c| [log.density(c[0]), log.density(c[1]), log.density(c[2])]);
+            grid.push(d.unwrap_or([f32::NAN; 3]));
+        }
+    }
     // pass 1: per-channel and mean-density histograms, and edge energy per channel
     let mut hists: Vec<Hist> = (0..4).map(|_| Hist::new()).collect();
     let mut edge = [0f64; 3];
-    for y in y0..y1 {
-        for x in x0..x1 {
-            let Some(d) = at(x, y) else { continue };
+    let cell = |gx: usize, gy: usize| grid.get(gy * gw + gx).copied().filter(|d| d[0].is_finite());
+    for gy in 0..gh {
+        for gx in 0..gw {
+            let Some(d) = cell(gx, gy) else { continue };
             for (k, v) in d.into_iter().chain([(d[0] + d[1] + d[2]) / 3.0]).enumerate() {
                 if let Some(hk) = hists.get_mut(k) {
                     hk.add(v);
                 }
             }
-            // forward differences to the right and below
-            for n in [(x + 1 < x1).then(|| at(x + 1, y)).flatten(), (y + 1 < y1).then(|| at(x, y + 1)).flatten()].into_iter().flatten() {
+            // differences to the right and below
+            for n in [(gx + 1 < gw).then(|| cell(gx + 1, gy)).flatten(), (gy + 1 < gh).then(|| cell(gx, gy + 1)).flatten()].into_iter().flatten() {
                 let g = [(n[0] - d[0]).abs(), (n[1] - d[1]).abs(), (n[2] - d[2]).abs()];
                 if g.iter().all(|v| *v < MAX_EDGE) {
                     for c in 0..3 {
@@ -378,14 +402,11 @@ pub fn analyze(px: &[f32], w: usize, h: usize, p: &Params) -> Analysis {
     // pass 2: brightness histogram of the balanced densities
     let base = [a.lo[0][2], a.lo[1][2], a.lo[2][2]];
     let mut lum = Hist::new();
-    for y in y0..y1 {
-        for x in x0..x1 {
-            if let Some(d) = at(x, y) {
-                lum.add((0..3).map(|c| (d[c] - base[c]) / a.gain[c]).sum::<f32>() / 3.0);
-            }
-        }
+    for d in grid.iter().filter(|d| d[0].is_finite()) {
+        lum.add((0..3).map(|c| (d[c] - base[c]) / a.gain[c]).sum::<f32>() / 3.0);
     }
     (a.lum_lo, a.lum_hi) = lum.ends();
+    a.measured = [gw as u32, gh as u32, step as u32];
     a
 }
 
