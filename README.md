@@ -28,19 +28,25 @@ Filters need no permissions.
    the image, and the orange cast stays.
 4. Pick a **Look** and a **Tone profile**, then fine-tune with the sliders or with the normal develop
    sliders, which act on the converted positive.
-5. To convert a roll, copy or sync the settings, including the filter stack. Each photo still needs
-   its own Measure (from the CLI or MCP: `develop.pluginFilter.analyze {uid, wait: true}` per photo).
+5. **A whole roll:** set up one frame (Measure, Look, sliders), then Copy and Paste (or Sync) its
+   settings to the other frames. The filter, its settings *and its measurement* go along, so the roll
+   converts consistently, like a lab's roll analysis. A frame that needs its own colour can be
+   measured on its own afterwards (select it, Measure).
 
 ## Controls
 
 | Group | Parameters |
 |---|---|
 | Convert | Type (Color Negative, B&W Negative, Positive), Look, Color model (Basic, None), Pre-saturation 1–5, Border buffer % |
-| Tone | Tone profile, Exposure, Brightness, Contrast, Lights, Darks, Whites, Blacks, Fade, Soft highs, Soft lows, White clip, Black clip |
+| Tone | Tone profile, Exposure, Brightness, Contrast, Lights, Darks, Whites, Blacks, Fade, Soft highs, Soft lows, Auto exposure, White clip, Black clip |
 | Colour | WB (Auto-Neutral, Auto-Color, Auto-Warm, Auto-Cool, None), Temp, Tint |
 
-**WB modes.** *Auto-Neutral* (the default) balances the dye layers from the edges in the frame
-(see below). *Auto-Color* stretches each channel between its own darkest and brightest values:
+**Auto exposure** (on by default) lifts a dark frame's median brightness toward mid grey, by at most
+about 2 stops, never darker, and rolls the highlights off so a bright sky doesn't clip. It needs a
+measurement; turn it off to get the plain conversion.
+
+**WB modes.** *Auto-Neutral* (the default) balances the dye layers from the edges in the frame and
+neutralises each channel's black (see below). *Auto-Color* stretches each channel between its own darkest and brightest values:
 stronger, but a large or very saturated object (blue sky, a red sign) can tilt the result.
 *Warm* and *Cool* are Auto-Neutral with a bias. *None* only removes the film base.
 
@@ -80,8 +86,9 @@ Details are in `src/convert.rs`. In short, everything works in density (`−log1
 1. **Base:** the film base (orange mask plus fog) is removed as a per-channel density offset.
 2. **Balance:** most density changes across edges are changes of light, not of colour, so the
    channels' mean edge strengths give each dye layer's contrast relative to green.
-3. **Ends:** black and white come from the brightness histogram of the balanced densities, so no
-   single channel or object sets them. White / Black clip choose which stored percentile is the end:
+3. **Ends:** each channel's black is its own darkest balanced density, so the shadows come out
+   neutral. White comes from the brightness histogram, shared by the channels, so no single channel
+   or object sets it. White / Black clip choose which stored percentile is the end:
    0 → 0.1 %, +4 → 2 %, −2 → 0 %.
 4. The normalised log exposure goes through the look and the tone profile, then back to linear light.
 

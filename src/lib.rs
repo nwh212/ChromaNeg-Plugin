@@ -27,7 +27,7 @@ use serde_json::Value;
 pub const MANIFEST: &str = r#"{
   "id": "io.github.nwh212.chromaneg",
   "name": "ChromaNeg",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "kind": "filter",
   "stage": "source",
   "description": "Converts film negatives and slides. Add it to a photo, set Type and Border buffer, then press Measure. Measure again after changing Border buffer.",
@@ -51,6 +51,7 @@ pub const MANIFEST: &str = r#"{
     "fade":         {"type": "number", "label": "Fade",       "min": 0,   "max": 50,  "default": 0},
     "softHighs":    {"type": "bool",   "label": "Soft highs", "default": false},
     "softLows":     {"type": "bool",   "label": "Soft lows",  "default": false},
+    "autoExposure": {"type": "bool",   "label": "Auto exposure", "default": true},
     "whiteClip":    {"type": "int",    "label": "White clip", "min": -2, "max": 4, "default": 0},
     "blackClip":    {"type": "int",    "label": "Black clip", "min": -2, "max": 4, "default": 0},
 

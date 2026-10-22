@@ -25,7 +25,7 @@ use serde_json::{Value, json};
 pub const PERCENTILES: [f64; 7] = [0.0, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0];
 
 /// The analysis format; an older measurement is ignored (the photo is measured again).
-const ANALYSIS_VERSION: i64 = 2;
+const ANALYSIS_VERSION: i64 = 3;
 
 /// Density histogram range and resolution.
 const D_MIN: f32 = -0.5;
@@ -171,6 +171,7 @@ pub struct Params {
     pub fade: f32,
     pub soft_highs: bool,
     pub soft_lows: bool,
+    pub auto_exposure: bool,
     pub white_clip: i64,
     pub black_clip: i64,
     pub wb: Wb,
@@ -212,6 +213,7 @@ impl Params {
             fade: num("fade", 0.0),
             soft_highs: flag("softHighs"),
             soft_lows: flag("softLows"),
+            auto_exposure: v.get("autoExposure").and_then(Value::as_bool).unwrap_or(true),
             white_clip: int("whiteClip"),
             black_clip: int("blackClip"),
             wb: match s("wbMode") {
@@ -241,6 +243,11 @@ pub struct Analysis {
     /// from the thin end and the dense end.
     pub lum_lo: [f32; 7],
     pub lum_hi: [f32; 7],
+    /// Per channel, the balanced density above the base at each of [`PERCENTILES`] from the thin
+    /// end: where each channel's black lies once the layers are balanced.
+    pub ge_lo: [[f32; 7]; 3],
+    /// The brightness at the 25th, 50th and 75th percentiles.
+    pub lum_mid: [f32; 3],
     /// The sample grid measured (width, height, step in pixels): a diagnostic, not used by the conversion.
     pub measured: [u32; 3],
 }
@@ -248,7 +255,8 @@ pub struct Analysis {
 impl Analysis {
     pub fn to_json(&self) -> Value {
         json!({"version": ANALYSIS_VERSION, "percentiles": PERCENTILES, "lo": self.lo, "hi": self.hi,
-               "gain": self.gain, "lumLo": self.lum_lo, "lumHi": self.lum_hi, "measured": self.measured})
+               "gain": self.gain, "lumLo": self.lum_lo, "lumHi": self.lum_hi, "geLo": self.ge_lo, "lumMid": self.lum_mid,
+               "measured": self.measured})
     }
 
     pub fn from_json(v: &Value) -> Option<Analysis> {
@@ -277,6 +285,11 @@ impl Analysis {
             gain,
             lum_lo: floats(v.get("lumLo")?)?,
             lum_hi: floats(v.get("lumHi")?)?,
+            ge_lo: {
+                let a = v.get("geLo")?.as_array()?;
+                [floats(a.first()?)?, floats(a.get(1)?)?, floats(a.get(2)?)?]
+            },
+            lum_mid: floats(v.get("lumMid")?)?,
             measured: v.get("measured").and_then(|m| serde_json::from_value(m.clone()).ok()).unwrap_or_default(),
         })
     }
@@ -284,7 +297,16 @@ impl Analysis {
     /// What we assume before the photo is measured: no mask, two density units of range, no
     /// balance. The result keeps the film's cast, which is the cue to press Measure.
     fn unmeasured() -> Analysis {
-        Analysis { lo: [[0.1; 7]; 4], hi: [[2.1; 7]; 4], gain: [1.0; 3], lum_lo: [0.0; 7], lum_hi: [2.0; 7], measured: [0; 3] }
+        Analysis {
+            lo: [[0.1; 7]; 4],
+            hi: [[2.1; 7]; 4],
+            gain: [1.0; 3],
+            lum_lo: [0.0; 7],
+            lum_hi: [2.0; 7],
+            ge_lo: [[0.0; 7]; 3],
+            lum_mid: [0.5, 1.0, 1.5],
+            measured: [0; 3],
+        }
     }
 }
 
@@ -341,6 +363,10 @@ impl Hist {
         (lo, hi)
     }
 }
+
+/// Auto exposure: where the median brightness should land in `t`, and the most it is lifted.
+const AUTO_MID: f32 = 0.42;
+const AUTO_MAX_LIFT: f32 = 0.3;
 
 /// Most pixels the measurement reads: plenty for histograms, and it keeps Measure well inside the
 /// host's instruction budget whatever size it is handed.
@@ -402,10 +428,19 @@ pub fn analyze(px: &[f32], w: usize, h: usize, p: &Params) -> Analysis {
     // pass 2: brightness histogram of the balanced densities
     let base = [a.lo[0][2], a.lo[1][2], a.lo[2][2]];
     let mut lum = Hist::new();
+    let mut ge: Vec<Hist> = (0..3).map(|_| Hist::new()).collect();
     for d in grid.iter().filter(|d| d[0].is_finite()) {
-        lum.add((0..3).map(|c| (d[c] - base[c]) / a.gain[c]).sum::<f32>() / 3.0);
+        let g = [(d[0] - base[0]) / a.gain[0], (d[1] - base[1]) / a.gain[1], (d[2] - base[2]) / a.gain[2]];
+        lum.add((g[0] + g[1] + g[2]) / 3.0);
+        for (h, v) in ge.iter_mut().zip(g) {
+            h.add(v);
+        }
     }
     (a.lum_lo, a.lum_hi) = lum.ends();
+    for (c, h) in ge.iter().enumerate() {
+        a.ge_lo[c] = h.ends().0;
+    }
+    a.lum_mid = [lum.at(0.25), lum.at(0.5), lum.at(0.75)];
     a.measured = [gw as u32, gh as u32, step as u32];
     a
 }
@@ -515,6 +550,8 @@ fn plan(p: &Params) -> Plan {
     let (thin_i, dense_i) = if flip { (wi, bi) } else { (bi, wi) };
     let mut origin = [0.0; 3];
     let mut scale = [1.0; 3];
+    // where the frame's median brightness lands in `t` (before the flip), for auto exposure
+    let mut mid = 0.5;
     if bw {
         let (thin, dense) = (a.lo[3][thin_i], a.hi[3][dense_i].max(a.lo[3][thin_i] + 0.05));
         origin = [thin; 3];
@@ -526,14 +563,19 @@ fn plan(p: &Params) -> Plan {
             scale[c] = 1.0 / (dense - thin);
         }
     } else {
-        // base removed, contrast balanced (unless None), ends from the brightness histogram
-        let gain = if p.wb == Wb::None { [1.0; 3] } else { a.gain };
-        let (thin, dense) = (a.lum_lo[thin_i], a.lum_hi[dense_i].max(a.lum_lo[thin_i] + 0.05));
+        // base removed and layers balanced (unless None); the thin end per channel, so the
+        // shadows (of a negative) come out neutral, the dense end shared from the brightness
+        let neutral = p.wb != Wb::None;
+        let gain = if neutral { a.gain } else { [1.0; 3] };
+        let thin = if neutral { [a.ge_lo[0][thin_i], a.ge_lo[1][thin_i], a.ge_lo[2][thin_i]] } else { [a.lum_lo[thin_i]; 3] };
+        let thin_mean = (thin[0] + thin[1] + thin[2]) / 3.0;
+        let dense = a.lum_hi[dense_i].max(thin_mean + 0.05);
         for c in 0..3 {
-            // t = ((d − base)/gain − thin)/(dense − thin)
-            origin[c] = a.lo[c][2] + thin * gain[c];
-            scale[c] = 1.0 / (gain[c] * (dense - thin));
+            // t = ((d − base)/gain − thin_c)/(dense − thin_mean)
+            origin[c] = a.lo[c][2] + thin[c] * gain[c];
+            scale[c] = 1.0 / (gain[c] * (dense - thin_mean));
         }
+        mid = (a.lum_mid[1] - thin_mean) / (dense - thin_mean);
     }
     let look = p.look;
     let temp = p.temp
@@ -549,7 +591,14 @@ fn plan(p: &Params) -> Plan {
     let crosstalk = if p.basic_color && !bw { look.crosstalk } else { 0.0 };
     let pr = p.profile;
     let contrast = p.contrast + look.contrast;
-    let params = p.clone();
+    let mut params = p.clone();
+    if p.auto_exposure && p.analysis.is_some() {
+        let mid = if flip { 1.0 - mid } else { mid };
+        // lift a dark frame's median toward mid grey (at most ~2 stops, never darker), and roll the highlights off
+        let lift = (AUTO_MID - mid).clamp(0.0, AUTO_MAX_LIFT);
+        params.exposure += lift * p.profile.range;
+        params.soft_highs |= lift > 0.0;
+    }
     let tone = Lut::new(-0.6, 1.6, 2200, move |t| tone(t, &params, contrast, &pr));
     let fade = pr.lift + (p.fade + look.fade * 100.0) / 200.0;
     let range = pr.range;
@@ -740,6 +789,31 @@ mod tests {
         assert!(p.analysis.is_none());
         assert_eq!(analyze(&[], 0, 0, &p), Analysis::unmeasured());
         let _ = analyze(&[0.5; 3], 5, 5, &p); // short buffer
+    }
+
+    #[test]
+    fn auto_exposure_lifts_a_dark_frame_and_leaves_a_normal_one() {
+        // a frame that is mostly deep shadow (low density on the negative) with a few bright pixels
+        let (w, h) = (100, 100);
+        let base = [0.25f32, 0.55, 0.85];
+        let dark: Vec<f32> = (0..w * h)
+            .flat_map(|i| {
+                let e = if i % 50 == 0 { 3.0 } else { 0.3 + 0.2 * ((i % 7) as f32 / 7.0) };
+                (0..3).map(move |c| 10f32.powf(-(base[c] + 0.65 * e)))
+            })
+            .collect();
+        let median = |auto: bool, px: &[f32], border: f32| {
+            let mut px = px.to_vec();
+            let p = measured(&px, w, h, json!({"autoExposure": auto, "borderBuffer": border}));
+            convert(&mut px, &p);
+            let mut g: Vec<f32> = px.chunks_exact(3).map(|c| c[1]).collect();
+            g.sort_by(f32::total_cmp);
+            g[g.len() / 2]
+        };
+        assert!(median(true, &dark, 0.0) > median(false, &dark, 0.0) * 1.5, "a dark frame should be lifted");
+        // the grey ramp, its clear film border outside the border buffer
+        let normal = negative(w, h);
+        assert!((median(true, &normal, 10.0) - median(false, &normal, 10.0)).abs() < 1e-4, "a normal frame should be left alone");
     }
 
     #[test]
