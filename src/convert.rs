@@ -106,6 +106,7 @@ pub struct Look {
     pub fade: f32,
 }
 
+#[allow(clippy::too_many_arguments)]
 const fn look(
     name: &'static str,
     sat: f32,
