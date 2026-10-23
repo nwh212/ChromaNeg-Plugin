@@ -4,8 +4,10 @@
 
 use std::fmt::Write as _;
 
-/// Each table: the TOML key, the Rust type and constant, and its fields with their neutral values.
-const TABLES: [(&str, &str, &str, &[(&str, Default)]); 3] = [
+/// A table: the TOML key, the Rust type and constant, and its fields with their neutral values.
+type Table = (&'static str, &'static str, &'static str, &'static [(&'static str, Default)]);
+
+const TABLES: [Table; 3] = [
     (
         "profile",
         "Profile",
