@@ -164,7 +164,7 @@ pub(crate) fn plan(p: &Params) -> Plan {
     let shadows = [look.shadows[0] + st.shadows[0], look.shadows[1] + st.shadows[1], look.shadows[2] + st.shadows[2]];
     let highlights = [look.highlights[0] + st.highlights[0], look.highlights[1] + st.highlights[1], look.highlights[2] + st.highlights[2]];
     let tinted = !bw && shadows.iter().chain(highlights.iter()).any(|v| *v != 0.0);
-    let hue_sat = (!bw && st.hue_sat != FLAT).then_some(st.hue_sat);
+    let hue_sat = (!bw && st.hue_sat != [1.0; 6]).then_some(st.hue_sat);
     let cube = cube.then(|| Lut::new(D_MIN, D_MAX, 4400, cube_root_of));
     Plan { origin, scale, flip, bw, offset, sat, crosstalk, hue_sat, shadows, highlights, tinted, cube, mul, tone, linear }
 }

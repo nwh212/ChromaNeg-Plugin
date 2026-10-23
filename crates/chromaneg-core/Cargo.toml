@@ -9,3 +9,6 @@ publish = false
 
 [dependencies]
 serde_json = "1"
+
+[build-dependencies]
+toml = "0.8"

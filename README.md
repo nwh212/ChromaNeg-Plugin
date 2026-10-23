@@ -46,6 +46,7 @@ Rust 1.88 or newer. `cargo test --workspace` runs everything natively (see *Test
 
 | Path | What |
 |---|---|
+| `crates/chromaneg-core/presets.toml` | the tone profiles, looks and film stocks as data: add or change one here (each lists only what differs from neutral; a typo stops the build with a message) |
 | `crates/chromaneg-core` | the conversion, independent of the plug-in ABI: `params` (what the host sends), `presets` (profiles, looks, stocks), `analysis` (Measure), `plan` (how each sample becomes light), `convert`, `overlay` (border buffer preview) |
 | `crates/pixel-filter` | the plug-in plumbing any pixel filter needs (memory blocks, parameters, chunked conversion, the ABI checks), so a new plug-in is only its manifest and its maths |
 | `plugins/chromaneg` | the plug-in: `manifest.json` (dialog order; the version and the menus are filled in from the code) and the ABI exports |
