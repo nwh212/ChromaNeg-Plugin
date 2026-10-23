@@ -496,6 +496,11 @@ const MAX_SAMPLES: usize = 300_000;
 
 /// Measures `px` (interleaved linear RGB, `w × h`, the whole uncropped photo) inside the border buffer.
 pub fn analyze(px: &[f32], w: usize, h: usize, p: &Params) -> Analysis {
+    analyze_with(|i| px.get(i * 3..i * 3 + 3).map(|c| [c[0], c[1], c[2]]), w, h, p)
+}
+
+/// [`analyze`] reading pixel `i` (`y · w + x`) through `pixel`, so the caller needn't copy the image.
+pub fn analyze_with(pixel: impl Fn(usize) -> Option<[f32; 3]>, w: usize, h: usize, p: &Params) -> Analysis {
     let inset = |n: usize| ((n as f32 * p.border / 100.0) as usize).min(n.saturating_sub(1) / 2);
     let (ix, iy) = (inset(w), inset(h));
     let (x0, x1, y0, y1) = (ix, w.saturating_sub(ix), iy, h.saturating_sub(iy));
@@ -507,8 +512,7 @@ pub fn analyze(px: &[f32], w: usize, h: usize, p: &Params) -> Analysis {
     let mut grid: Vec<[f32; 3]> = Vec::with_capacity(gw * gh);
     for gy in 0..gh {
         for gx in 0..gw {
-            let i = ((y0 + gy * step) * w + x0 + gx * step) * 3;
-            let d = px.get(i..i + 3).map(|c| [log.density(c[0]), log.density(c[1]), log.density(c[2])]);
+            let d = pixel((y0 + gy * step) * w + x0 + gx * step).map(|c| [log.density(c[0]), log.density(c[1]), log.density(c[2])]);
             grid.push(d.unwrap_or([f32::NAN; 3]));
         }
     }
@@ -820,8 +824,28 @@ fn tone(mut t: f32, p: &Params, contrast: f32, pr: &Profile) -> f32 {
 
 /// Converts interleaved linear RGB in place.
 pub fn convert(px: &mut [f32], p: &Params) {
-    let pl = plan(p);
-    let log = FastLog::new();
+    Converter::new(p).run(px);
+}
+
+/// A conversion prepared once (its lookup tables built) and run on any number of chunks.
+pub struct Converter {
+    pl: Plan,
+    log: FastLog,
+}
+
+impl Converter {
+    pub fn new(p: &Params) -> Converter {
+        Converter { pl: plan(p), log: FastLog::new() }
+    }
+
+    /// Converts interleaved linear RGB in place.
+    pub fn run(&self, px: &mut [f32]) {
+        let (pl, log) = (&self.pl, &self.log);
+        convert_with(px, pl, log);
+    }
+}
+
+fn convert_with(px: &mut [f32], pl: &Plan, log: &FastLog) {
     let (sh, hl, tinted) = (pl.shadows, pl.highlights, pl.tinted);
     for c in px.chunks_exact_mut(3) {
         let mut d = [log.density(c[0]), log.density(c[1]), log.density(c[2])];

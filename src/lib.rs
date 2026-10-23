@@ -27,7 +27,7 @@ use serde_json::Value;
 pub const MANIFEST: &str = r#"{
   "id": "io.github.nwh212.chromaneg",
   "name": "ChromaNeg",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "kind": "filter",
   "stage": "source",
   "description": "Converts film negatives and slides. Add it to a photo, set Type and Border buffer, then press Measure. Measure again after changing Border buffer.",
@@ -97,9 +97,21 @@ fn read_params(ptr: i32, len: i32) -> Value {
     with_block(ptr, len, |bytes| serde_json::from_slice(bytes).ok()).flatten().unwrap_or(Value::Null)
 }
 
-fn read_pixels(bytes: &[u8]) -> Vec<f32> {
-    bytes.as_chunks::<4>().0.iter().map(|c| f32::from_le_bytes(*c)).collect()
+/// Pixel `i` of an interleaved RGB `f32` block, read in place.
+fn pixel_at(bytes: &[u8], i: usize) -> Option<[f32; 3]> {
+    let b = bytes.get(i.checked_mul(12)?..i.checked_mul(12)?.checked_add(12)?)?;
+    let f = |k: usize| b.get(k..k + 4).and_then(|s| <[u8; 4]>::try_from(s).ok()).map(f32::from_le_bytes);
+    Some([f(0)?, f(4)?, f(8)?])
 }
+
+/// Pixels converted per chunk: the image is never copied whole, so a call needn't grow memory.
+const CHUNK_PX: usize = 65_536;
+
+/// Working memory reserved when the host allocates the pixel block. Growing a module's memory in the
+/// middle of `pc_filter` / `pc_analyze` can fail on the host's instruction budget in a way that
+/// depends on the heap's layout, so everything those calls allocate is reserved up front, in
+/// `pc_alloc`, which has a budget of its own.
+const SCRATCH_BYTES: usize = 16 << 20;
 
 /// The ABI checks shared by `pc_filter` and `pc_analyze`: 3-channel f32 RGB and a buffer that fits.
 fn rgb_args(len: i32, w: i32, h: i32, channels: i32, format: i32) -> Option<(usize, usize)> {
@@ -122,6 +134,10 @@ pub extern "C" fn pc_manifest() -> i64 {
 #[unsafe(no_mangle)]
 pub extern "C" fn pc_alloc(len: i32) -> i32 {
     let Ok(n) = usize::try_from(len) else { return 0 };
+    if n >= CHUNK_PX {
+        // the pixel block: reserve working memory too (freed at once, kept by the allocator)
+        drop(Vec::<u8>::with_capacity(SCRATCH_BYTES));
+    }
     let v = vec![0u8; n.max(1)];
     let p = addr(&v);
     BLOCKS.with(|b| b.borrow_mut().insert(p, v));
@@ -133,11 +149,16 @@ pub extern "C" fn pc_alloc(len: i32) -> i32 {
 pub extern "C" fn pc_filter(buf: i32, len: i32, w: i32, h: i32, channels: i32, format: i32, params: i32, params_len: i32) -> i32 {
     let Some(_) = rgb_args(len, w, h, channels, format) else { return BAD_ARGS };
     let p = convert::Params::from_json(&read_params(params, params_len));
+    let conv = convert::Converter::new(&p);
     let done = with_block(buf, len, |bytes| {
-        let mut px = read_pixels(bytes);
-        convert::convert(&mut px, &p);
-        for (d, v) in bytes.as_chunks_mut::<4>().0.iter_mut().zip(px) {
-            *d = v.to_le_bytes();
+        let mut px: Vec<f32> = Vec::with_capacity(CHUNK_PX * 3);
+        for chunk in bytes.chunks_mut(CHUNK_PX * 12) {
+            px.clear();
+            px.extend(chunk.as_chunks::<4>().0.iter().map(|c| f32::from_le_bytes(*c)));
+            conv.run(&mut px);
+            for (d, v) in chunk.as_chunks_mut::<4>().0.iter_mut().zip(px.iter()) {
+                *d = v.to_le_bytes();
+            }
         }
     });
     if done.is_some() { OK } else { BAD_ARGS }
@@ -148,8 +169,7 @@ pub extern "C" fn pc_filter(buf: i32, len: i32, w: i32, h: i32, channels: i32, f
 pub extern "C" fn pc_analyze(buf: i32, len: i32, w: i32, h: i32, channels: i32, format: i32, params: i32, params_len: i32) -> i64 {
     let Some((w, h)) = rgb_args(len, w, h, channels, format) else { return 0 };
     let p = convert::Params::from_json(&read_params(params, params_len));
-    let Some(px) = with_block(buf, len, |bytes| read_pixels(bytes)) else { return 0 };
-    let a = convert::analyze(&px, w, h, &p);
+    let Some(a) = with_block(buf, len, |bytes| convert::analyze_with(|i| pixel_at(bytes, i), w, h, &p)) else { return 0 };
     pack(a.to_json().to_string().into_bytes())
 }
 

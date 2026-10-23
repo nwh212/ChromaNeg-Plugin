@@ -171,6 +171,12 @@ A street frame without a reference renders slightly darker in v0.7 than v0.6 (ab
 white truck still near neutral. Negative Lab Pro has no stock-specific corrections, so these figures
 can only check that a stock stays gentle, not that its corrections are right.
 
+Memory: the image is converted in chunks and measured in place, never copied whole, and the
+working memory is reserved when the host allocates the pixel block. Growing memory in the middle of
+a render or Measure can fail on the host's instruction budget depending on the heap's layout (0.7.0's
+Measure failed that way on some photos with some settings). Measured margins on a 2.7 MP frame: Measure
+uses about 1/40 of its budget, a render band about 1/9.
+
 Speed: the logarithm and the tone curve are lookup tables. In the app's interpreter, a
 2.7 MP render takes about 1–2 s (v0.1: 3.6 s), and Measure about 0.5 s: it reads at most 300 000
 pixels, with each density computed once.
