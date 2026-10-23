@@ -154,7 +154,7 @@ Details are in `src/convert.rs`. In short, everything works in density (`−log1
 
 **Checked against a reference.** On a scan you also converted with Negative Lab Pro, the default settings
 come within 9.9 levels (of 255) of its result over the whole frame, measured on an 8-bit export of the
-negative (v0.4: about 25, with a strong yellow-green cast).
+negative (v0.4: 19.6, with a strong yellow-green cast).
 
 Speed: the logarithm and the tone curve are lookup tables. In the app's interpreter, a
 2.7 MP render takes about 1–2 s (v0.1: 3.6 s), and Measure about 0.5 s: it reads at most 300 000
