@@ -295,6 +295,13 @@ impl Default for Params {
 }
 
 impl Params {
+    /// Whether to draw the border buffer preview: while "Show border buffer" is ticked and the
+    /// photo isn't measured with this border buffer yet. The host can't tell a filter that it is
+    /// exporting, so the preview goes away on Measure rather than staying in exports.
+    pub fn shows_border(&self) -> bool {
+        self.show_border && self.analysis.as_ref().and_then(|a| a.border).is_none_or(|b| (b - self.border).abs() > 1e-3)
+    }
+
     pub fn from_json(v: &Value) -> Params {
         let num = |k: &str, d: f64| v.get(k).and_then(Value::as_f64).filter(|f| f.is_finite()).unwrap_or(d) as f32;
         let int = |k: &str| v.get(k).and_then(Value::as_f64).filter(|f| f.is_finite()).unwrap_or(0.0).round() as i64;
@@ -364,13 +371,16 @@ pub struct Analysis {
     pub hl_ref: [f32; 3],
     /// The sample grid measured (width, height, step in pixels): a diagnostic, not used by the conversion.
     pub measured: [u32; 3],
+    /// The border buffer it was measured with (`None` from before 0.9.2): the border preview hides
+    /// once this matches the setting, so a measured photo exports without it.
+    pub border: Option<f32>,
 }
 
 impl Analysis {
     pub fn to_json(&self) -> Value {
         json!({"version": ANALYSIS_VERSION, "percentiles": PERCENTILES, "lo": self.lo, "hi": self.hi,
                "gain": self.gain, "lumLo": self.lum_lo, "lumHi": self.lum_hi, "geLo": self.ge_lo, "lumMid": self.lum_mid, "hlRef": self.hl_ref,
-               "measured": self.measured})
+               "measured": self.measured, "borderBuffer": self.border})
     }
 
     pub fn from_json(v: &Value) -> Option<Analysis> {
@@ -406,6 +416,7 @@ impl Analysis {
             lum_mid: floats(v.get("lumMid")?)?,
             hl_ref: floats(v.get("hlRef")?)?,
             measured: v.get("measured").and_then(|m| serde_json::from_value(m.clone()).ok()).unwrap_or_default(),
+            border: v.get("borderBuffer").and_then(Value::as_f64).filter(|f| f.is_finite()).map(|f| f as f32),
         })
     }
 
@@ -422,6 +433,7 @@ impl Analysis {
             lum_mid: [0.5, 1.0, 1.5],
             hl_ref: [2.0; 3],
             measured: [0; 3],
+            border: None,
         }
     }
 }
@@ -659,6 +671,7 @@ pub fn analyze_with(pixel: impl Fn(usize) -> Option<[f32; 3]>, w: usize, h: usiz
         }
     }
     a.measured = [gw as u32, gh as u32, step as u32];
+    a.border = Some(p.border);
     a
 }
 
@@ -1255,6 +1268,23 @@ mod tests {
         let mut px = vec![0.5f32; 30];
         o.apply(&mut px, 0);
         assert!(px.iter().all(|v| v.is_finite()));
+    }
+
+    #[test]
+    fn the_border_preview_shows_until_measured_with_that_border_buffer() {
+        let (w, h) = (200, 40);
+        let px = negative(w, h);
+        let show = |border: f64, measured_with: Option<f64>| {
+            let mut json = json!({"showBorder": true, "borderBuffer": border});
+            if let Some(b) = measured_with {
+                json["_analysis"] = analyze(&px, w, h, &Params::from_json(&json!({"borderBuffer": b}))).to_json();
+            }
+            Params::from_json(&json).shows_border()
+        };
+        assert!(show(10.0, None), "before Measure");
+        assert!(!show(10.0, Some(10.0)), "measured: exports stay clean");
+        assert!(show(15.0, Some(10.0)), "the border buffer changed since");
+        assert!(!Params::from_json(&json!({"borderBuffer": 10})).shows_border(), "unticked");
     }
 
     #[test]

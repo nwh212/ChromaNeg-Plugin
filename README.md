@@ -49,8 +49,8 @@ Rust 1.88 or newer. `cargo test` runs the conversion natively (see *Test* below)
    the linear capture before every other develop step.
 3. Crop to the frame if you like, then set **Type** and **Border buffer %**, so the film holder,
    sprocket holes and edge print lie outside the measured area. Tick **Show border buffer** to see it:
-   everything outside the measured area is dimmed in safelight red (untick it before exporting).
-   Then press **Measure**. Until you measure, the filter only inverts the image, and the orange cast
+   everything outside the measured area is dimmed in safelight red until you press **Measure** with
+   that border buffer, so exports of a measured photo never show it. Then press **Measure**. Until you measure, the filter only inverts the image, and the orange cast
    stays. After changing the crop or the border buffer, press Measure again.
 4. Pick a **Look** and a **Tone profile**, then fine-tune with the sliders or with the normal develop
    sliders, which act on the converted positive.
