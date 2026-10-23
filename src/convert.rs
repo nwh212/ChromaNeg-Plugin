@@ -152,12 +152,107 @@ pub const LOOKS: [Look; 14] = [
     look("Archive Print", 1.08, 10.0, 4.0, 2.0, [0.006, -0.004, -0.006], [0.006, 0.0, -0.006], 1.2, 0.0),
 ];
 
+/// A film stock's gentle correction: what Auto-Neutral can't fix on its own (it already removes a
+/// frame's overall cast). Offsets are layered under the look and the sliders.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Stock {
+    pub name: &'static str,
+    /// Dye cross-talk correction strength: 1 for a masked film; more for a film without an orange
+    /// mask, whose dyes' unwanted absorptions nothing else corrects.
+    pub crosstalk: f32,
+    pub sat: f32,
+    pub contrast: f32,
+    /// Added to the Darks slider: lifts a toe that falls off fast.
+    pub darks: f32,
+    pub temp: f32,
+    pub tint: f32,
+    /// Added to R, G, B in the shadows and the highlights (counters a tone-dependent cast).
+    pub shadows: [f32; 3],
+    pub highlights: [f32; 3],
+    /// Saturation by hue: red, yellow, green, cyan, blue, magenta (1 = unchanged).
+    pub hue_sat: [f32; 6],
+}
+
+#[allow(clippy::too_many_arguments)]
+const fn stock(
+    name: &'static str,
+    crosstalk: f32,
+    sat: f32,
+    contrast: f32,
+    darks: f32,
+    temp: f32,
+    tint: f32,
+    shadows: [f32; 3],
+    highlights: [f32; 3],
+    hue_sat: [f32; 6],
+) -> Stock {
+    Stock { name, crosstalk, sat, contrast, darks, temp, tint, shadows, highlights, hue_sat }
+}
+
+const FLAT: [f32; 6] = [1.0; 6];
+const NONE3: [f32; 3] = [0.0; 3];
+
+/// The film stocks, in menu order. The first is the default. Each corrects the stock's reported
+/// tendencies gently; the comments say what (sources in the README). Tint < 0 counters magenta.
+pub const STOCKS: [Stock; 24] = [
+    // the generic masked-film correction (the former "Basic" colour model)
+    stock("Generic", 1.0, 1.0, 0.0, 0.0, 0.0, 0.0, NONE3, NONE3, FLAT),
+    // no correction at all (the former "None")
+    stock("None (as scanned)", 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, NONE3, NONE3, FLAT),
+    // Kodak Portra 160: flat, pastel, slightly desaturated by design; slight magenta-blue bias
+    stock("Kodak Portra 160", 1.0, 1.05, 4.0, 0.0, 0.0, -2.0, NONE3, [-0.003, 0.0, 0.003], [1.0, 1.03, 1.02, 1.0, 1.0, 1.0]),
+    // Kodak Portra 400: natural, low saturation; slight magenta-blue bias
+    stock("Kodak Portra 400", 1.0, 1.0, 0.0, 0.0, 0.0, -2.0, NONE3, NONE3, FLAT),
+    // Kodak Portra 800: warmer, more saturated and contrasty than its siblings
+    stock("Kodak Portra 800", 1.0, 0.97, -4.0, 0.0, -2.0, 0.0, NONE3, [-0.004, 0.0, 0.004], FLAT),
+    // Kodak Ektar 100: the most saturated C-41 stock, warm orange lean, reddish skin
+    stock("Kodak Ektar 100", 1.1, 0.93, -3.0, 0.0, -3.0, 0.0, NONE3, NONE3, [0.88, 0.94, 1.0, 1.0, 1.0, 0.96]),
+    // Kodak Gold 200: warm, reds and yellows pushed, contrasty; weak on overcast days
+    stock("Kodak Gold 200", 1.0, 1.0, -4.0, 0.0, -4.0, 0.0, NONE3, NONE3, [0.92, 0.9, 1.02, 1.0, 1.0, 1.0]),
+    // Kodak UltraMax 400: saturated and a bit punchier than Portra, slightly cooler than Gold
+    stock("Kodak UltraMax 400", 1.0, 0.95, -3.0, 0.0, -1.0, 0.0, NONE3, NONE3, FLAT),
+    // Kodak ColorPlus 200: soft colour, moderate contrast, flat in dull light
+    stock("Kodak ColorPlus 200", 1.0, 1.06, 4.0, 0.0, 0.0, 0.0, NONE3, NONE3, FLAT),
+    // Kodak Vision3 50D (ECN-2 cine stock): flat by design, meant to be graded
+    stock("Kodak Vision3 50D", 1.0, 1.04, 8.0, 0.0, 0.0, 0.0, NONE3, NONE3, FLAT),
+    // Kodak Vision3 250D: flat by design
+    stock("Kodak Vision3 250D", 1.0, 1.06, 10.0, 0.0, 0.0, 0.0, NONE3, NONE3, FLAT),
+    // Kodak Vision3 500T: flat, tungsten-balanced (Auto-Neutral removes the daylight blue)
+    stock("Kodak Vision3 500T", 1.0, 1.05, 10.0, 0.0, 0.0, 0.0, NONE3, NONE3, FLAT),
+    // CineStill 50D (Vision3 50D without remjet): fine grain, accurate; red halation
+    stock("CineStill 50D", 1.0, 1.03, 6.0, 0.0, 0.0, 0.0, NONE3, NONE3, FLAT),
+    // CineStill 400D: medium contrast, occasional mint-green cast
+    stock("CineStill 400D", 1.0, 1.04, 6.0, 0.0, 0.0, 4.0, [0.0, -0.004, 0.0], NONE3, FLAT),
+    // CineStill 800T (Vision3 500T without remjet): flat-ish, tungsten-balanced; red halation
+    stock("CineStill 800T", 1.0, 1.04, 8.0, 0.0, 0.0, 0.0, NONE3, NONE3, FLAT),
+    // Fujifilm Superia X-TRA 400: magenta casts reported in scans
+    stock("Fujifilm Superia X-TRA 400", 1.0, 1.0, 0.0, 0.0, 0.0, -5.0, NONE3, NONE3, [1.0, 1.0, 1.04, 1.0, 1.0, 0.9]),
+    // Fujicolor C200 (the classic Fuji emulsion): cool, green-leaning
+    stock("Fujicolor C200", 1.0, 1.02, 0.0, 0.0, 2.0, 2.0, NONE3, NONE3, [1.0, 1.0, 0.97, 1.0, 1.0, 1.0]),
+    // Fujifilm 200 (2022 on): its datasheet matches Kodak Gold 200's, so corrected like Gold
+    stock("Fujifilm 200", 1.0, 1.0, -3.0, 0.0, -3.0, 0.0, NONE3, NONE3, [0.93, 0.92, 1.02, 1.0, 1.0, 1.0]),
+    // Fujifilm 400 (US, 2023 on): widely thought to be UltraMax-like; corrected like UltraMax
+    stock("Fujifilm 400", 1.0, 0.96, -3.0, 0.0, -1.0, 0.0, NONE3, NONE3, FLAT),
+    // Fujifilm Pro 400H (discontinued, fourth colour layer): pastel, greenish-blue cast
+    stock("Fujifilm Pro 400H", 1.0, 1.03, 0.0, 0.0, 2.0, 3.0, NONE3, NONE3, [1.0, 1.0, 0.96, 0.97, 1.0, 1.0]),
+    // Harman Phoenix 200 (I): no orange mask, high contrast, shadows fall off fast; bold reds and
+    // blues, weak yellows and skin; warm highlights over cold, greenish shadows
+    stock("Harman Phoenix 200", 1.8, 0.92, -14.0, 18.0, -6.0, 0.0, [0.006, -0.008, 0.002], [-0.006, 0.0, 0.006], [0.88, 1.15, 1.0, 0.95, 0.9, 1.0]),
+    // Harman Phoenix II: no orange mask; more normal contrast and colour than Phoenix I, cooler
+    // blues and greens, shadows still fall off fast
+    stock("Harman Phoenix II", 1.6, 0.96, -8.0, 14.0, 4.0, 2.0, [0.004, -0.005, 0.0], NONE3, [0.95, 1.06, 0.97, 0.94, 0.95, 1.0]),
+    // Lomography Color Negative 400 (thought to be Kodak-made): balanced, slightly muted
+    stock("Lomography 400", 1.0, 1.06, 0.0, 0.0, 0.0, 0.0, NONE3, NONE3, FLAT),
+    // Lomography Color Negative 800: medium-high saturation, natural skin
+    stock("Lomography 800", 1.0, 0.98, -2.0, 0.0, 0.0, 0.0, NONE3, NONE3, FLAT),
+];
+
 /// The resolved parameters (the host has clamped them to the manifest's ranges already).
 #[derive(Clone, Debug)]
 pub struct Params {
     pub film: FilmType,
     pub look: Look,
-    pub basic_color: bool,
+    pub stock: Stock,
     pub pre_saturation: f32,
     pub border: f32,
     pub profile: Profile,
@@ -199,7 +294,8 @@ impl Params {
                 _ => FilmType::ColorNegative,
             },
             look: LOOKS.iter().find(|l| l.name == s("look")).copied().unwrap_or(LOOKS[0]),
-            basic_color: s("colorModel") != "None",
+            // `colorModel` is the setting before film stocks: "None" maps to no correction
+            stock: STOCKS.iter().find(|k| k.name == s("stock")).copied().unwrap_or(if s("colorModel") == "None" { STOCKS[1] } else { STOCKS[0] }),
             pre_saturation: num("preSaturation", 3.0),
             border: num("borderBuffer", 10.0).clamp(0.0, 45.0),
             profile: PROFILES.iter().find(|p| p.name == s("toneProfile")).copied().unwrap_or(PROFILES[0]),
@@ -535,6 +631,10 @@ struct Plan {
     offset: [f32; 3],
     sat: f32,
     crosstalk: f32,
+    hue_sat: Option<[f32; 6]>,
+    shadows: [f32; 3],
+    highlights: [f32; 3],
+    tinted: bool,
     /// `t` (before tone) → `t` (after tone and sliders).
     tone: Lut,
     /// `t` (after tone, tint and fade) → linear light.
@@ -578,20 +678,23 @@ fn plan(p: &Params) -> Plan {
         mid = (a.lum_mid[1] - thin_mean) / (dense - thin_mean);
     }
     let look = p.look;
+    let st = p.stock;
     let temp = p.temp
         + look.temp
+        + st.temp
         + match p.wb {
             Wb::Warm => 10.0,
             Wb::Cool => -10.0,
             _ => 0.0,
         };
-    let tint = p.tint + look.tint;
+    let tint = p.tint + look.tint + st.tint;
     let offset = if bw { [0.0; 3] } else { [temp / 400.0, -tint / 400.0, -temp / 400.0] };
-    let sat = if bw { 0.0 } else { (1.0 + (p.pre_saturation - 3.0) * 0.15) * look.sat * p.profile.sat };
-    let crosstalk = if p.basic_color && !bw { look.crosstalk } else { 0.0 };
+    let sat = if bw { 0.0 } else { (1.0 + (p.pre_saturation - 3.0) * 0.15) * look.sat * st.sat * p.profile.sat };
+    let crosstalk = if bw { 0.0 } else { look.crosstalk * st.crosstalk };
     let pr = p.profile;
-    let contrast = p.contrast + look.contrast;
+    let contrast = p.contrast + look.contrast + st.contrast;
     let mut params = p.clone();
+    params.darks += st.darks;
     if p.auto_exposure && p.analysis.is_some() {
         let mid = if flip { 1.0 - mid } else { mid };
         // lift a dark frame's median toward mid grey (at most ~2 stops, never darker), and roll the highlights off
@@ -606,7 +709,26 @@ fn plan(p: &Params) -> Plan {
         let t = fade + t.clamp(0.0, 1.0) * (1.0 - fade);
         (2f32.powf(range * t) - 1.0) / (2f32.powf(range) - 1.0)
     });
-    Plan { origin, scale, flip, bw, offset, sat, crosstalk, tone, linear }
+    let shadows = [look.shadows[0] + st.shadows[0], look.shadows[1] + st.shadows[1], look.shadows[2] + st.shadows[2]];
+    let highlights = [look.highlights[0] + st.highlights[0], look.highlights[1] + st.highlights[1], look.highlights[2] + st.highlights[2]];
+    let tinted = !bw && shadows.iter().chain(highlights.iter()).any(|v| *v != 0.0);
+    let hue_sat = (!bw && st.hue_sat != FLAT).then_some(st.hue_sat);
+    Plan { origin, scale, flip, bw, offset, sat, crosstalk, hue_sat, shadows, highlights, tinted, tone, linear }
+}
+
+/// The saturation factor for the hue of `t` (an RGB triple around its mean), from six sectors
+/// (red, yellow, green, cyan, blue, magenta) interpolated linearly.
+fn hue_factor(t: &[f32; 3], hs: &[f32; 6]) -> f32 {
+    let x = t[0] - 0.5 * (t[1] + t[2]);
+    let y = 0.866_025_4 * (t[1] - t[2]);
+    if x * x + y * y < 1e-12 {
+        return 1.0;
+    }
+    let deg = y.atan2(x).to_degrees().rem_euclid(360.0);
+    let f = deg / 60.0;
+    let i = (f as usize).min(5);
+    let (a, b) = (hs.get(i).copied().unwrap_or(1.0), hs.get((i + 1) % 6).copied().unwrap_or(1.0));
+    a + (b - a) * (f - i as f32)
 }
 
 /// The profile and the tone sliders, on one channel's normalised log exposure.
@@ -632,8 +754,7 @@ fn tone(mut t: f32, p: &Params, contrast: f32, pr: &Profile) -> f32 {
 pub fn convert(px: &mut [f32], p: &Params) {
     let pl = plan(p);
     let log = FastLog::new();
-    let (sh, hl) = (p.look.shadows, p.look.highlights);
-    let tinted = !pl.bw && (sh.iter().chain(hl.iter()).any(|v| *v != 0.0));
+    let (sh, hl, tinted) = (pl.shadows, pl.highlights, pl.tinted);
     for c in px.chunks_exact_mut(3) {
         let mut d = [log.density(c[0]), log.density(c[1]), log.density(c[2])];
         if pl.bw {
@@ -654,9 +775,13 @@ pub fn convert(px: &mut [f32], p: &Params) {
             ];
         }
         let m = (t[0] + t[1] + t[2]) / 3.0;
+        let sat = match &pl.hue_sat {
+            Some(hs) => pl.sat * hue_factor(&t, hs),
+            None => pl.sat,
+        };
         let mut o = [0.0f32; 3];
         for k in 0..3 {
-            o[k] = pl.tone.get(m + (t[k] - m) * pl.sat + pl.offset[k]);
+            o[k] = pl.tone.get(m + (t[k] - m) * sat + pl.offset[k]);
         }
         if tinted {
             let l = (o[0] + o[1] + o[2]) / 3.0;
@@ -709,7 +834,7 @@ mod tests {
         let (w, h) = (200, 40);
         for wb in ["Auto-Neutral", "Auto-Color"] {
             let mut px = negative(w, h);
-            let p = measured(&px, w, h, json!({"colorModel": "None", "look": "Neutral", "wbMode": wb}));
+            let p = measured(&px, w, h, json!({"stock": "None (as scanned)", "look": "Neutral", "wbMode": wb}));
             convert(&mut px, &p);
             let row = &px[(h / 2) * w * 3..(h / 2 + 1) * w * 3];
             let mut last = -1.0;
@@ -732,7 +857,7 @@ mod tests {
                 px[(y * w + x) * 3] = 10f32.powf(-3.0);
             }
         }
-        let p = measured(&px, w, h, json!({"colorModel": "None", "look": "Neutral"}));
+        let p = measured(&px, w, h, json!({"stock": "None (as scanned)", "look": "Neutral"}));
         convert(&mut px, &p);
         let c = &px[(60 * w + 100) * 3..(60 * w + 100) * 3 + 3];
         assert!(spread(c) < 0.03, "mid grey tinted: {c:?}");
@@ -776,6 +901,44 @@ mod tests {
                 assert!(px.iter().all(|v| v.is_finite() && (-0.01..=1.01).contains(v)), "{} / {}", l.name, pr.name);
             }
         }
+    }
+
+    #[test]
+    fn every_stock_renders_finite_values_and_none_matches_the_old_none() {
+        let (w, h) = (64, 32);
+        let px0 = negative(w, h);
+        for st in STOCKS {
+            let mut px = px0.clone();
+            let p = measured(&px, w, h, json!({"stock": st.name}));
+            convert(&mut px, &p);
+            assert!(px.iter().all(|v| v.is_finite() && (-0.01..=1.01).contains(v)), "{}", st.name);
+        }
+        assert_eq!(Params::from_json(&json!({"colorModel": "None"})).stock.name, "None (as scanned)");
+        assert_eq!(Params::from_json(&json!({"colorModel": "Basic"})).stock.name, "Generic");
+    }
+
+    #[test]
+    fn hue_sectors_land_where_they_should() {
+        let hs = [0.5, 1.0, 1.0, 1.0, 2.0, 1.0];
+        assert!((hue_factor(&[0.2, -0.1, -0.1], &hs) - 0.5).abs() < 1e-3, "red");
+        assert!((hue_factor(&[-0.1, -0.1, 0.2], &hs) - 2.0).abs() < 1e-3, "blue");
+        assert_eq!(hue_factor(&[0.0; 3], &hs), 1.0, "grey");
+    }
+
+    #[test]
+    fn a_harman_stock_softens_contrast_and_lifts_the_shadows() {
+        let (w, h) = (200, 40);
+        let render = |stock: &str| {
+            let mut px = negative(w, h);
+            let p = measured(&px, w, h, json!({"stock": stock, "autoExposure": false}));
+            convert(&mut px, &p);
+            let at = |x: usize| px[((h / 2) * w + x) * 3 + 1];
+            (at(w / 5), at(w / 2))
+        };
+        let (gen_dark, gen_mid) = render("Generic");
+        let (ph_dark, ph_mid) = render("Harman Phoenix 200");
+        assert!(ph_dark > gen_dark, "shadows should lift: {ph_dark} vs {gen_dark}");
+        assert!(ph_mid / ph_dark < gen_mid / gen_dark, "contrast should soften");
     }
 
     #[test]

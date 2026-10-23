@@ -37,7 +37,7 @@ Filters need no permissions.
 
 | Group | Parameters |
 |---|---|
-| Convert | Type (Color Negative, B&W Negative, Positive), Look, Color model (Basic, None), Pre-saturation 1–5, Border buffer % |
+| Convert | Type (Color Negative, B&W Negative, Positive), Look, Film stock, Pre-saturation 1–5, Border buffer % |
 | Tone | Tone profile, Exposure, Brightness, Contrast, Lights, Darks, Whites, Blacks, Fade, Soft highs, Soft lows, Auto exposure, White clip, Black clip |
 | Colour | WB (Auto-Neutral, Auto-Color, Auto-Warm, Auto-Cool, None), Temp, Tint |
 
@@ -49,6 +49,62 @@ measurement; turn it off to get the plain conversion.
 neutralises each channel's black (see below). *Auto-Color* stretches each channel between its own darkest and brightest values:
 stronger, but a large or very saturated object (blue sky, a red sign) can tilt the result.
 *Warm* and *Cool* are Auto-Neutral with a bias. *None* only removes the film base.
+
+**Film stocks** gently correct a stock's known tendencies. Auto-Neutral already removes a frame's
+overall cast, so a stock corrects what it can't: dye cross-talk (stronger for films without an
+orange mask), contrast and the shadow toe, casts that differ between shadows and highlights, and
+saturation by hue. *Generic* is the former "Basic" colour model and *None (as scanned)* the former "None".
+Stocks are corrections; Looks are creative, and the two combine.
+
+| Stock | Reported tendency | Correction |
+|---|---|---|
+| Kodak Portra 160 | flat, pastel, low saturation; slight magenta-blue bias | a little more contrast and saturation, tint toward green |
+| Kodak Portra 400 | natural, low saturation; slight magenta-blue bias | tint toward green |
+| Kodak Portra 800 | warmer, more saturated and contrasty than 160/400 | softer, cooler highlights |
+| Kodak Ektar 100 | the most saturated C-41 stock; warm orange lean; reddish skin | less red and orange, slightly less saturation and warmth |
+| Kodak Gold 200 | warm, reds and yellows pushed, contrasty | less red and yellow, cooler, softer |
+| Kodak UltraMax 400 | saturated, punchier than Portra | slightly less saturation and contrast |
+| Kodak ColorPlus 200 | soft colour, flat in dull light | a little more contrast and saturation |
+| Kodak Vision3 50D / 250D / 500T | cine stocks, flat by design (made to be graded) | more contrast and saturation |
+| CineStill 50D / 800T | Vision3 without remjet: flat-ish, red halation | more contrast (halation is optical and can't be undone per pixel) |
+| CineStill 400D | medium contrast, occasional mint-green cast | tint away from green, mostly in the shadows |
+| Fujifilm Superia X-TRA 400 | magenta casts reported in scans | tint toward green, less magenta |
+| Fujicolor C200 | cool, green-leaning | slightly warmer, tint away from green |
+| Fujifilm 200 (2022 on) | datasheet matches Kodak Gold 200 | corrected like Gold |
+| Fujifilm 400 (US, 2023 on) | widely thought to be UltraMax-like (unconfirmed) | corrected like UltraMax |
+| Fujifilm Pro 400H | fourth colour layer; pastel, greenish-blue cast | tint away from green, cooler greens and cyans |
+| Harman Phoenix 200 | **no orange mask**, limited antihalation; high contrast, shadows fall off fast; bold reds and blues, weak yellows and skin; warm highlights over cold greenish shadows | strong cross-talk correction, much softer contrast, lifted toe, less red/blue and more yellow, opposite split cast, cooler |
+| Harman Phoenix II | **no orange mask**; more normal contrast and colour than Phoenix I, cooler blues and greens, shadows still fall off fast | strong cross-talk correction, softer contrast, lifted toe, slightly warmer |
+| Lomography 400 / 800 | 400: balanced, slightly muted; 800: medium-high saturation | 400: a little more saturation; 800: slightly less |
+
+These are starting points from published descriptions, not measurements: the datasheets' curves
+and spectral dye densities are figures, and reviews depend on lab and scanner. Tune them against
+your own scans. Sources:
+- Masking chemistry: [C-41 process](https://en.wikipedia.org/wiki/C-41_process); Brian Pritchard,
+  [Why colour negatives are orange](https://brianpritchard.com/wp/motion-picture-technology/__trashed-6/).
+- Kodak: [technical documents index](https://125px.com/techdocs/kodak/) (Portra 400 E-4050, Ektar
+  100 E-4046, Gold 200 E-7022, UltraMax 400 E-7023); [Ektar vs Portra](https://gridfiti.com/ektar-100-vs-portra);
+  [Ektar 100 test](https://www.adorama.com/alc/product-review-kodak-ektar-100-120-roll-film-test);
+  [Portra 160/400/800](https://www.l-camera-forum.com/topic/335509-portra-160-400-800-differences);
+  [Gold 200](https://www.focusnordic.com/product-reviews/kodak-gold-200-review-by-bjorn-joachimsen/);
+  [UltraMax 400](https://www.digitalcameraworld.com/cameras/film-cameras/kodak-ultramax-400-film-review);
+  [UltraMax vs Gold](https://shootitwithfilm.com/film-comparison-kodak-ultramax-400-vs-kodak-gold-200-pushed-one-stop/);
+  [ColorPlus 200](https://www.analog.cafe/r/kodak-colorplus-200-film-review-fygr);
+  [Vision3 250D](https://www.35mmc.com/03/07/2019/c41-or-ecn2-to-process-kodak-vision-3-250d-movie-colour-negative-a-quick-comparison-by-phil-harrison).
+- CineStill: [800T](https://brooklynfilmcamera.com/blogs/guides/cinestill-800t-review-the-night-photography-film),
+  [400D](https://www.japancamerahunter.com/2022/10/film-review-cinestill-400d/).
+- Fujifilm: [Superia](https://en.wikipedia.org/wiki/Fujifilm_Superia);
+  [Superia X-TRA 400](https://www.analog.cafe/r/fujifilm-superia-x-tra-400-film-review-zc0y);
+  [Pro 400H](https://analog.cafe/r/fujifilm-fujicolor-pro-400h-film-review-rau5);
+  [Fujicolor 200 and Gold 200](https://petapixel.com/2022/01/10/fujifilms-new-fujicolor-200-looks-to-be-kodak-gold-200-in-disguise);
+  [Fujifilm 400 and UltraMax](https://www.35mmc.com/11/07/2023/fujifilm-400-made-in-the-usa-vs-kodak-ultramax-400-the-same-or-different/).
+- Harman: [Phoenix 200 store page](https://cinestillfilm.com/products/phoenix200-color-negative-film-35mm);
+  [Phoenix 200 review](https://casualphotophile.com/2023/12/01/harman-phoenix-200-the-review/);
+  [Phoenix 200 slide test](https://www.photrio.com/forum/threads/slide-with-harman-phoenix-200.212735/post-2882422);
+  [Phoenix II release](https://kosmofoto.com/2025/07/harman-technology-releases-phoenix-ii-colour-negative-film/);
+  [Phoenix II review](https://bluemooncameracodex.com/film-fridays/harman-phoenix-ii).
+- Lomography: [Color 400](https://parallaxphotographic.coop/lomography-color-negative-400-film-review/),
+  [Color 800](https://www.analog.cafe/r/lomography-color-negative-800-film-review-y45b).
 
 **Looks** are offsets layered on the sliders, so every slider still starts at 0. Each is an own design:
 
