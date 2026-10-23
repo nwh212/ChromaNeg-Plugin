@@ -1,0 +1,16 @@
+# Not part of the workspace (it builds the whole app): cargo run --release --manifest-path tools/dump-source/Cargo.toml -- …
+[package]
+name = "dump-source"
+description = "Writes a photo as Chromaforge's Source stage sees it (linear sRGB f32), for the bench"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+
+[workspace]
+
+[dependencies]
+# the app at a commit with framed measurement (emmertex/lightcraft-classic#444)
+lcc-engine = { git = "https://github.com/emmertex/lightcraft-classic", rev = "c8fb13fad" }
+lcc-pipeline = { git = "https://github.com/emmertex/lightcraft-classic", rev = "c8fb13fad" }
+serde_json = "1"

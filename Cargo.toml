@@ -1,6 +1,7 @@
 [workspace]
 resolver = "3"
-members = ["crates/*", "plugins/*"]
+members = ["crates/*", "plugins/*", "tools/bench"]
+exclude = ["tools/dump-source"]
 
 [profile.release]
 opt-level = "s"
