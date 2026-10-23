@@ -4,6 +4,12 @@ Measurements made with one version can need **Measure** again in a later one; th
 "Reference error" is the mean difference from a Negative Lab Pro conversion of the same scan, in
 levels of 255 (see the README).
 
+## 0.9.0 (Measure again)
+- **Measures inside your crop**: the border buffer now applies after cropping, in apps that support
+  `"analyzeArea": "crop"` (see the README); others still measure the whole photo.
+- **Show border buffer**: a checkbox that dims everything outside the measured area in safelight red
+  while you set the border buffer.
+
 ## 0.8.0
 - **Glow** (new) and **Fade** (now −50 to +50), fitted to reference conversions: Glow brightens the
   mids and settles the whites; Fade lifts the blacks to a matte print. Negative values push the other way.

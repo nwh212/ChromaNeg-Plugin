@@ -27,9 +27,10 @@ use serde_json::Value;
 pub const MANIFEST: &str = r#"{
   "id": "io.github.nwh212.chromaneg",
   "name": "ChromaNeg",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "kind": "filter",
   "stage": "source",
+  "analyzeArea": "crop",
   "description": "Converts film negatives and slides. Add it to a photo, set Type and Border buffer, then press Measure. Measure again after changing Border buffer.",
   "author": "",
   "overlap": 0,
@@ -39,6 +40,7 @@ pub const MANIFEST: &str = r#"{
     "stock":        {"type": "choice", "label": "Film stock", "options": ["Generic", "None (as scanned)", "Kodak Portra 160", "Kodak Portra 400", "Kodak Portra 800", "Kodak Ektar 100", "Kodak Gold 200", "Kodak UltraMax 400", "Kodak ColorPlus 200", "Kodak Vision3 50D", "Kodak Vision3 250D", "Kodak Vision3 500T", "CineStill 50D", "CineStill 400D", "CineStill 800T", "Fujifilm Superia X-TRA 400", "Fujicolor C200", "Fujifilm 200", "Fujifilm 400", "Fujifilm Pro 400H", "Harman Phoenix 200", "Harman Phoenix II", "Lomography 400", "Lomography 800"], "default": "Generic"},
     "preSaturation":{"type": "int",    "label": "Pre-saturation", "min": 1, "max": 5, "default": 3},
     "borderBuffer": {"type": "number", "label": "Border buffer %", "min": 0, "max": 25, "default": 10},
+    "showBorder":   {"type": "bool",   "label": "Show border buffer", "default": false},
 
     "toneProfile":  {"type": "choice", "label": "Tone profile", "options": ["Standard", "Soft", "Hard", "Highlight Soft", "Highlight Hard", "Shadow Soft", "Shadow Hard", "Cine Log", "Cine Rich", "Cine Flat", "Linear", "Linear Gamma", "Linear Deep", "Linear Flat"], "default": "Standard"},
     "exposure":     {"type": "number", "label": "Exposure",   "min": -5,  "max": 5,   "default": 0},
@@ -148,15 +150,21 @@ pub extern "C" fn pc_alloc(len: i32) -> i32 {
 #[unsafe(no_mangle)]
 #[allow(clippy::too_many_arguments)]
 pub extern "C" fn pc_filter(buf: i32, len: i32, w: i32, h: i32, channels: i32, format: i32, params: i32, params_len: i32) -> i32 {
-    let Some(_) = rgb_args(len, w, h, channels, format) else { return BAD_ARGS };
-    let p = convert::Params::from_json(&read_params(params, params_len));
+    let Some((band_w, _)) = rgb_args(len, w, h, channels, format) else { return BAD_ARGS };
+    let json = read_params(params, params_len);
+    let p = convert::Params::from_json(&json);
     let conv = convert::Converter::new(&p);
+    // the border buffer preview: where this band sits in the frame, and the measured area
+    let overlay = p.show_border.then(|| convert::BorderOverlay::new(json.get("_image"), band_w, p.border));
     let done = with_block(buf, len, |bytes| {
         let mut px: Vec<f32> = Vec::with_capacity(CHUNK_PX * 3);
-        for chunk in bytes.chunks_mut(CHUNK_PX * 12) {
+        for (n, chunk) in bytes.chunks_mut(CHUNK_PX * 12).enumerate() {
             px.clear();
             px.extend(chunk.as_chunks::<4>().0.iter().map(|c| f32::from_le_bytes(*c)));
             conv.run(&mut px);
+            if let Some(o) = &overlay {
+                o.apply(&mut px, n * CHUNK_PX);
+            }
             for (d, v) in chunk.as_chunks_mut::<4>().0.iter_mut().zip(px.iter()) {
                 *d = v.to_le_bytes();
             }

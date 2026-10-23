@@ -278,6 +278,7 @@ pub struct Params {
     pub glow: f32,
     pub soft_highs: bool,
     pub soft_lows: bool,
+    pub show_border: bool,
     pub auto_exposure: bool,
     pub white_clip: i64,
     pub black_clip: i64,
@@ -322,6 +323,7 @@ impl Params {
             glow: num("glow", 0.0),
             soft_highs: flag("softHighs"),
             soft_lows: flag("softLows"),
+            show_border: flag("showBorder"),
             auto_exposure: flag("autoExposure"),
             white_clip: int("whiteClip"),
             black_clip: int("blackClip"),
@@ -888,6 +890,46 @@ fn tone(mut t: f32, p: &Params, contrast: f32, pr: &Profile) -> f32 {
     t.clamp(0.0, T_MAX)
 }
 
+/// The border buffer preview ("Show border buffer"): dims what lies outside the measured area in a
+/// safelight red. Positions come from the host's `_image` (the band's place in the frame); the
+/// measured area is the frame inset by the border buffer on every side, as Measure uses it when the
+/// host measures the frame the filter renders (`"analyzeArea": "crop"`).
+pub struct BorderOverlay {
+    /// The band's top-left in the frame, its width, and the measured area in frame pixels.
+    x: usize,
+    y: usize,
+    band_w: usize,
+    inside: (usize, usize, usize, usize),
+}
+
+impl BorderOverlay {
+    pub fn new(image: Option<&Value>, band_w: usize, border: f32) -> BorderOverlay {
+        let get = |k: &str| image.and_then(|v| v.get(k)).and_then(Value::as_f64).filter(|f| f.is_finite() && *f >= 0.0).map(|f| f as usize);
+        let (x, y) = (get("x").unwrap_or(0), get("y").unwrap_or(0));
+        let (cw, ch) = (get("canvasWidth").unwrap_or(band_w), get("canvasHeight").unwrap_or(usize::MAX / 2));
+        let inset = |n: usize| ((n as f32 * border / 100.0) as usize).min(n.saturating_sub(1) / 2);
+        let (ix, iy) = (inset(cw), inset(ch));
+        BorderOverlay { x, y, band_w: band_w.max(1), inside: (ix, iy, cw.saturating_sub(ix), ch.saturating_sub(iy)) }
+    }
+
+    /// Whether frame pixel (`fx`, `fy`) is measured.
+    fn measured(&self, fx: usize, fy: usize) -> bool {
+        let (x0, y0, x1, y1) = self.inside;
+        (x0..x1).contains(&fx) && (y0..y1).contains(&fy)
+    }
+
+    /// Dims the pixels of `px` (interleaved RGB, starting at band pixel `start`) outside the measured area.
+    pub fn apply(&self, px: &mut [f32], start: usize) {
+        for (i, c) in px.as_chunks_mut::<3>().0.iter_mut().enumerate() {
+            let n = start + i;
+            if !self.measured(self.x + n % self.band_w, self.y + n / self.band_w) {
+                let l = 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+                *c = [0.08 + 0.35 * l, 0.15 * l, 0.12 * l];
+            }
+        }
+    }
+}
+
 /// Converts interleaved linear RGB in place.
 pub fn convert(px: &mut [f32], p: &Params) {
     Converter::new(p).run(px);
@@ -1122,6 +1164,33 @@ mod tests {
         assert!(display_curve(0.5, &GLOW_CURVE, 1.0) > 0.55 && display_curve(1.0, &GLOW_CURVE, 1.0) < 0.85, "glow: brighter mids, softer whites");
         assert_eq!(display_curve(0.37, &GLOW_CURVE, 0.0), 0.37);
         assert!((srgb_decode(srgb_encode(0.18)) - 0.18).abs() < 1e-5);
+    }
+
+    #[test]
+    fn the_border_preview_dims_exactly_the_unmeasured_frame() {
+        // a 100 × 50 frame drawn as one band; a 10 % buffer leaves 10..90 × 5..45 measured
+        let image = json!({"x": 0, "y": 0, "width": 100, "height": 50, "canvasWidth": 100, "canvasHeight": 50});
+        let o = BorderOverlay::new(Some(&image), 100, 10.0);
+        let mut px = vec![0.5f32; 100 * 50 * 3];
+        o.apply(&mut px, 0);
+        let at = |x: usize, y: usize| px[(y * 100 + x) * 3 + 1];
+        assert_eq!(at(50, 25), 0.5, "inside stays");
+        assert_eq!(at(10, 5), 0.5, "the inner corner stays");
+        assert!(at(9, 25) < 0.2 && at(50, 4) < 0.2 && at(90, 25) < 0.2 && at(50, 45) < 0.2, "outside dims");
+        // a lower band of the same frame (rows 25..50), started mid-band: positions follow `_image`
+        let lower = json!({"x": 0, "y": 25, "width": 100, "height": 25, "canvasWidth": 100, "canvasHeight": 50});
+        let o = BorderOverlay::new(Some(&lower), 100, 10.0);
+        let mut px = vec![0.5f32; 100 * 3];
+        o.apply(&mut px, 19 * 100); // band row 19 = frame row 44 (inside); the next would be 45
+        assert_eq!(px[50 * 3 + 1], 0.5);
+        let mut px = vec![0.5f32; 100 * 3];
+        o.apply(&mut px, 20 * 100);
+        assert!(px[50 * 3 + 1] < 0.2, "frame row 45 is outside");
+        // no `_image`: the band is the frame's width, nothing breaks
+        let o = BorderOverlay::new(None, 10, 10.0);
+        let mut px = vec![0.5f32; 30];
+        o.apply(&mut px, 0);
+        assert!(px.iter().all(|v| v.is_finite()));
     }
 
     #[test]

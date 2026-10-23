@@ -17,7 +17,15 @@ the app's `docs/plugins.md` ▸ *Pixel filters*), runs in its sandbox and asks f
 3. Installing a newer version replaces the old one (same plug-in id); press **Measure** again on photos
    measured with an older version when its notes say the measurement format changed.
 
-**Compatibility:** Chromaforge v26.43 or newer with pixel-filter plug-ins. In v26.43.4, clicking the
+**Compatibility:** Chromaforge v26.43 or newer with pixel-filter plug-ins.
+
+**Measuring inside the crop:** ChromaNeg asks the app to measure the photo as cropped
+(`"analyzeArea": "crop"` in its manifest), so the border buffer applies inside your crop. That needs
+an app change that's on the `analyze-crop` branch of
+[nwh212/chromaforge-plugins](https://github.com/nwh212/chromaforge-plugins/tree/analyze-crop) and
+offered upstream. Without it, the app measures the whole uncropped photo: the border buffer applies
+to the full scan, and on a cropped photo the *Show border buffer* overlay doesn't match what's
+measured. Uncropped photos behave the same either way. In v26.43.4, clicking the
 Develop ▸ *Plug-in Filters* section header shows "section.pluginFilters: no such Edit section" and the
 section won't open; that's an app bug, fixed on the `fix-plugin-filters-section` branch of
 [nwh212/chromaforge-plugins](https://github.com/nwh212/chromaforge-plugins/tree/fix-plugin-filters-section).
@@ -39,9 +47,11 @@ Rust 1.88 or newer. `cargo test` runs the conversion natively (see *Test* below)
    border if you like, though the conversion removes the mask either way.
 2. In Develop ▸ Plug-in Filters, add **ChromaNeg**. It asks for the **Source** stage, so it runs on
    the linear capture before every other develop step.
-3. Set **Type** and **Border buffer %**, so the film holder, sprocket holes and edge print lie
-   outside the measured area. Then press **Measure**. Until you measure, the filter only inverts
-   the image, and the orange cast stays.
+3. Crop to the frame if you like, then set **Type** and **Border buffer %**, so the film holder,
+   sprocket holes and edge print lie outside the measured area. Tick **Show border buffer** to see it:
+   everything outside the measured area is dimmed in safelight red (untick it before exporting).
+   Then press **Measure**. Until you measure, the filter only inverts the image, and the orange cast
+   stays. After changing the crop or the border buffer, press Measure again.
 4. Pick a **Look** and a **Tone profile**, then fine-tune with the sliders or with the normal develop
    sliders, which act on the converted positive.
 5. **A whole roll:** set up one frame (Measure, Look, sliders), then Copy and Paste (or Sync) its
@@ -53,7 +63,7 @@ Rust 1.88 or newer. `cargo test` runs the conversion natively (see *Test* below)
 
 | Group | Parameters |
 |---|---|
-| Convert | Type (Color Negative, B&W Negative, Positive), Look, Film stock, Pre-saturation 1–5, Border buffer % |
+| Convert | Type (Color Negative, B&W Negative, Positive), Look, Film stock, Pre-saturation 1–5, Border buffer %, Show border buffer |
 | Tone | Tone profile, Exposure, Brightness, Contrast, Lights, Darks, Whites, Blacks, Glow, Fade, Soft highs, Soft lows, Auto exposure, White clip, Black clip |
 | Colour | WB (Auto-Neutral, Auto-Color, Auto-Warm, Auto-Cool, None), Temp, Tint |
 
