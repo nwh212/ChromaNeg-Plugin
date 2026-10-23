@@ -98,7 +98,7 @@ fn main() -> Result<(), String> {
                     (None, Default::Arr(a)) => format!("[{}]", a.iter().map(|x| lit(*x)).collect::<Vec<_>>().join(", ")),
                     (Some(v), Default::Num(_)) => lit(num(v).ok_or_else(|| format!("{at} ({name}): {f} must be a number"))?),
                     (Some(v), Default::Arr(a)) => {
-                        let xs: Option<Vec<f64>> = v.as_array().map(|xs| xs.iter().map(num).collect()).flatten();
+                        let xs: Option<Vec<f64>> = v.as_array().and_then(|xs| xs.iter().map(num).collect());
                         let xs = xs.filter(|xs| xs.len() == a.len()).ok_or_else(|| format!("{at} ({name}): {f} must be {} numbers", a.len()))?;
                         format!("[{}]", xs.iter().map(|x| lit(*x)).collect::<Vec<_>>().join(", "))
                     }
