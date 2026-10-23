@@ -125,9 +125,9 @@ your own scans. Sources:
 | Night Cine | tungsten cine stock in daylight: teal shadows, warm highlights |
 | Archive Print | optical print on archival paper: deep blacks, rich reds, warm |
 
-**Tone profiles** turn the normalised value `t` into light. *Standard* was fitted to a reference
-conversion of the same scan (Negative Lab Pro, its standard settings): linear light ≈ `t`^1.5, with the
-top rolled off instead of clipped. The others vary it: Soft, Hard; Highlight Soft / Hard and Shadow
+**Tone profiles** turn the normalised value `t` into light. *Standard* was fitted to three reference
+conversions (Negative Lab Pro, its standard settings): linear light ≈ `t`^1.68, with the top rolled
+off instead of clipped. The others vary it: Soft, Hard; Highlight Soft / Hard and Shadow
 Soft / Hard (shoulder or toe only); Cine Log (flat and lifted, for grading), Cine Rich, Cine Flat;
 Linear (light = `t`), Linear Gamma (brighter mids), Linear Deep (darker), Linear Flat (brighter).
 
@@ -154,16 +154,22 @@ Details are in `src/convert.rs`. In short, everything works in density (`−log1
    step moves along 0, 0.1, 0.25, 0.5, 1, 1.5, 2, 3, 5, 8, 12 %.
 4. The normalised value goes through the look and the tone profile, then into light.
 
-**Checked against references.** Two scans also converted with Negative Lab Pro, compared over the whole
-frame (mean difference in levels of 255, from 8-bit exports of the negatives):
+**Checked against references.** Three scans also converted with Negative Lab Pro, compared over the
+whole frame (mean difference in levels of 255, from 8-bit exports of the negatives; "in the app" marks
+your own renders from the app). The defaults are picked against all three together, so none is tuned
+to a single photo:
 
-| Frame | v0.4 | v0.5 | v0.6 |
-|---|---|---|---|
-| Colour negative portrait, indoors | 19.6 | 9.9 | 8.9 |
-| Harman Phoenix 200 landscape, flatbed scan (Generic) | — | 14.7 (in the app) | 9.1 |
-| the same with the Phoenix 200 stock | — | 35.6 (in the app) | 9.3 |
+| Frame | v0.4 | v0.5 | v0.6 | v0.7 |
+|---|---|---|---|---|
+| Colour negative portrait, indoors | 19.6 | 9.9 | 8.9 | 10.7 |
+| Harman Phoenix 200 landscape, flatbed (Generic) | — | 14.7 (in the app) | 9.1 | 6.7 |
+| the same with the Phoenix 200 stock | — | 35.6 (in the app) | 9.3 | 6.5 |
+| Kodak 200 forest, daylight (Generic) | — | — | 14.9 (in the app) | 10.8 |
+| the same with the ColorPlus 200 stock | — | — | 14.9 (in the app) | 11.3 |
 
-A third frame (street, daylight) has no reference; v0.6 renders it within a few levels of v0.5.
+A street frame without a reference renders slightly darker in v0.7 than v0.6 (about 5 levels), its
+white truck still near neutral. Negative Lab Pro has no stock-specific corrections, so these figures
+can only check that a stock stays gentle, not that its corrections are right.
 
 Speed: the logarithm and the tone curve are lookup tables. In the app's interpreter, a
 2.7 MP render takes about 1–2 s (v0.1: 3.6 s), and Measure about 0.5 s: it reads at most 300 000

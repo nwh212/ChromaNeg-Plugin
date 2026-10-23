@@ -26,8 +26,8 @@ pub const PERCENTILES: [f64; NP] = [0.0, 0.1, 0.25, 0.5, 1.0, 1.5, 2.0, 3.0, 5.0
 pub const NP: usize = 11;
 /// The film base: the 0.1 % thin end of each channel.
 const BASE_I: usize = 1;
-/// White and black clip 0 pick these percentiles (5 % and 3 %, fitted to two reference conversions:
-/// a colour negative portrait and a Harman Phoenix landscape); each clip step moves one entry along
+/// White and black clip 0 pick these percentiles (5 % and 3 %, fitted to three reference conversions:
+/// a colour negative portrait, a Harman Phoenix landscape and a Kodak 200 daylight frame); each clip step moves one entry along
 /// [`PERCENTILES`].
 const WHITE_I: i64 = 8;
 const BLACK_I: i64 = 7;
@@ -82,21 +82,22 @@ const fn profile(name: &'static str, slopes: [f32; 3], power: f32, lift: f32, ga
 
 /// The tone profiles, in menu order. The first is the default.
 pub const PROFILES: [Profile; 14] = [
-    // fitted to a reference conversion: linear light ≈ t^1.5, highlights rolled off at the top
-    profile("Standard", [1.0, 1.0, 1.0], 1.5, 0.0, 1.0, 1.0),
-    profile("Soft", [1.15, 0.88, 1.15], 1.4, 0.0, 1.0, 0.97),
-    profile("Hard", [0.8, 1.25, 0.8], 1.6, 0.0, 1.0, 1.04),
-    profile("Highlight Soft", [1.0, 1.05, 0.6], 1.5, 0.0, 1.0, 1.0),
-    profile("Highlight Hard", [1.0, 0.95, 1.3], 1.5, 0.0, 1.0, 1.0),
-    profile("Shadow Soft", [1.3, 0.95, 1.0], 1.45, 0.0, 1.0, 1.0),
-    profile("Shadow Hard", [0.7, 1.1, 1.0], 1.55, 0.0, 1.0, 1.0),
+    // fitted to three reference conversions: linear light ≈ t^1.68, highlights rolled off at the top
+    profile("Standard", [1.0, 1.0, 1.0], 1.68, 0.0, 1.0, 1.0),
+    profile("Soft", [1.15, 0.88, 1.15], 1.57, 0.0, 1.0, 0.97),
+    profile("Hard", [0.8, 1.25, 0.8], 1.79, 0.0, 1.0, 1.04),
+    profile("Highlight Soft", [1.0, 1.05, 0.6], 1.68, 0.0, 1.0, 1.0),
+    profile("Highlight Hard", [1.0, 0.95, 1.3], 1.68, 0.0, 1.0, 1.0),
+    profile("Shadow Soft", [1.3, 0.95, 1.0], 1.62, 0.0, 1.0, 1.0),
+    profile("Shadow Hard", [0.7, 1.1, 1.0], 1.74, 0.0, 1.0, 1.0),
+    // flat starting points for grading: not scaled with Standard
     profile("Cine Log", [1.2, 0.8, 1.2], 1.0, 0.05, 1.0, 0.85),
-    profile("Cine Rich", [0.75, 1.3, 0.75], 1.55, 0.0, 1.0, 1.12),
-    profile("Cine Flat", [1.1, 0.9, 1.1], 1.2, 0.02, 1.0, 0.92),
+    profile("Cine Rich", [0.75, 1.3, 0.75], 1.74, 0.0, 1.0, 1.12),
+    profile("Cine Flat", [1.1, 0.9, 1.1], 1.34, 0.02, 1.0, 0.92),
     profile("Linear", [1.0, 1.0, 1.0], 1.0, 0.0, 1.0, 1.0),
     profile("Linear Gamma", [1.0, 1.0, 1.0], 1.0, 0.0, 0.85, 1.0),
-    profile("Linear Deep", [1.0, 1.0, 1.0], 1.8, 0.0, 1.0, 1.0),
-    profile("Linear Flat", [1.0, 1.0, 1.0], 1.25, 0.0, 1.0, 1.0),
+    profile("Linear Deep", [1.0, 1.0, 1.0], 2.0, 0.0, 1.0, 1.0),
+    profile("Linear Flat", [1.0, 1.0, 1.0], 1.4, 0.0, 1.0, 1.0),
 ];
 
 /// A look: offsets layered on top of the sliders (so the sliders still start at 0).
