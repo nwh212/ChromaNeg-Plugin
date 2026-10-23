@@ -19,16 +19,18 @@ the app's `docs/plugins.md` ▸ *Pixel filters*), runs in its sandbox and asks f
 
 **Compatibility:** Chromaforge v26.43 or newer with pixel-filter plug-ins.
 
-**Measuring inside the crop:** ChromaNeg asks the app to measure the photo as cropped
-(`"analyzeArea": "crop"` in its manifest), so the border buffer applies inside your crop. That needs
-an app change that's on the `analyze-crop` branch of
-[nwh212/chromaforge-plugins](https://github.com/nwh212/chromaforge-plugins/tree/analyze-crop) and
-offered upstream. Without it, the app measures the whole uncropped photo: the border buffer applies
-to the full scan, and on a cropped photo the *Show border buffer* overlay doesn't match what's
-measured. Uncropped photos behave the same either way. In v26.43.4, clicking the
-Develop ▸ *Plug-in Filters* section header shows "section.pluginFilters: no such Edit section" and the
-section won't open; that's an app bug, fixed on the `fix-plugin-filters-section` branch of
-[nwh212/chromaforge-plugins](https://github.com/nwh212/chromaforge-plugins/tree/fix-plugin-filters-section).
+**App features ChromaNeg asks for** (in its manifest; an app without them still runs it):
+- **Measuring inside the crop** (`"analyzeArea": "crop"`): the border buffer applies inside your
+  crop. In the app since [emmertex/lightcraft-classic#444](https://github.com/emmertex/lightcraft-classic/pull/444);
+  older versions measure the whole uncropped photo, and on a cropped photo the *Show border buffer*
+  overlay then doesn't match what's measured.
+- **No second tone curve on raw files** (`"baseTone": "neutral"`): the app tones a raw after the
+  Source stage with the camera's own curve (or its default raw curve), which on top of ChromaNeg's
+  conversion adds contrast and saturation and moves the brightness. ChromaNeg asks the app to show
+  its result as it is. That's on the `plugin-base-tone` branch of
+  [nwh212/chromaforge-plugins](https://github.com/nwh212/chromaforge-plugins/tree/plugin-base-tone)
+  and offered upstream; until an app release has it, raw captures (camera RAWs, raw DNGs) come out
+  more contrasty than intended. TIFF and JPEG scans aren't affected.
 
 ## Build from source
 
@@ -63,7 +65,7 @@ Rust 1.88 or newer. `cargo test` runs the conversion natively (see *Test* below)
 
 | Group | Parameters |
 |---|---|
-| Convert | Type (Color Negative, B&W Negative, Positive), Look, Film stock, Pre-saturation 1–5, Border buffer %, Show border buffer |
+| Convert | Type (Color Negative, B&W Negative, Positive), Method (Shared range, Per channel), Look, Film stock, Pre-saturation 1–5, Border buffer %, Show border buffer |
 | Tone | Tone profile, Exposure, Brightness, Contrast, Lights, Darks, Whites, Blacks, Glow, Fade, Soft highs, Soft lows, Auto exposure, White clip, Black clip |
 | Colour | WB (Auto-Neutral, Auto-Color, Auto-Warm, Auto-Cool, None), Temp, Tint |
 
@@ -77,10 +79,19 @@ them aren't known, so the scale may change.
 **Auto exposure** (off by default) lifts a dark frame's median brightness toward mid grey, by at most
 2 stops, never darker, and rolls the highlights off so a bright sky doesn't clip. It needs a measurement.
 
-**WB modes.** *Auto-Neutral* (the default) balances the dye layers from the edges in the frame and
-neutralises each channel's black (see below). *Auto-Color* stretches each channel between its own darkest and brightest values:
-stronger, but a large or very saturated object (blue sky, a red sign) can tilt the result.
-*Warm* and *Cool* are Auto-Neutral with a bias. *None* only removes the film base.
+**Method** (colour negatives). *Shared range* (the default, since 0.10) gives the three dye layers
+the same contrast and balances them by their offsets, as one film's layers respond alike: blue skies
+stay blue, greens stay green, and colours keep their saturation instead of being stretched.
+*Per channel* is the method of 0.9 and earlier: each layer stretched to its own range, balanced by
+the edges in the frame. It suits some indoor and portrait frames better (warmer, closer to a lab's
+look on those) but can oversaturate and tint frames dominated by one colour.
+
+**WB modes.** *Auto-Neutral* (the default) removes the mask and balances the channels: with Shared
+range, half of the remaining difference between the channels' averages; with Per channel, from the
+edges in the frame, each channel's black neutral (see below). *Auto-Color* stretches each channel
+between its own darkest and brightest values: stronger, but a large or very saturated object (blue
+sky, a red sign) can tilt the result. *Warm* and *Cool* are Auto-Neutral with a bias. *None* only
+removes the film base.
 
 **Film stocks** gently correct a stock's known tendencies. Auto-Neutral already removes a frame's
 overall cast, so a stock corrects what it can't: dye cross-talk (stronger for films without an
@@ -158,9 +169,10 @@ your own scans. Sources:
 | Night Cine | tungsten cine stock in daylight: teal shadows, warm highlights |
 | Archive Print | optical print on archival paper: deep blacks, rich reds, warm |
 
-**Tone profiles** turn the normalised value `t` into light. *Standard* was fitted to three reference
-conversions (Negative Lab Pro, its standard settings): linear light ≈ `t`^1.68, with the top rolled
-off instead of clipped. The others vary it: Soft, Hard; Highlight Soft / Hard and Shadow
+**Tone profiles** turn the normalised value `t` into light. *Standard* was fitted to reference
+conversions (Negative Lab Pro, its standard settings): linear light ≈ `t`^1.68 with Per channel
+(`t`^2.1 with Shared range, whose `t` is spaced differently), with the top rolled off instead of
+clipped. The others vary it: Soft, Hard; Highlight Soft / Hard and Shadow
 Soft / Hard (shoulder or toe only); Cine Log (flat and lifted, for grading), Cine Rich, Cine Flat;
 Linear (light = `t`), Linear Gamma (brighter mids), Linear Deep (darker), Linear Flat (brighter).
 
@@ -170,39 +182,59 @@ plug-in interpreter. Use Develop ▸ Detail ▸ Sharpening on the converted imag
 
 ## How it works
 
-Sources: own design on textbook film sensitometry; colour balance from the grey-edge hypothesis
-(van de Weijer, Gevers, Gijsenij, "Edge-Based Color Constancy", IEEE TIP 2007), applied to densities.
-Details are in `src/convert.rs`. In short, everything works in density (`−log10` of the linear sample):
+Sources: own design on textbook film sensitometry; Per channel's colour balance from the grey-edge
+hypothesis (van de Weijer, Gevers, Gijsenij, "Edge-Based Color Constancy", IEEE TIP 2007), applied to
+densities; Shared range from fitting reference conversions (below). Details are in `src/convert.rs`.
 
+**Shared range** (colour negatives, the default):
+1. **Mask:** each channel is divided by its own thin-end level (5 % from the thin end), which removes
+   the orange mask: a grey's three channels then agree whatever the mask's colour.
+2. **Domain:** the result's cube root, a gamma-like scale on which reference conversions turned out
+   to give every channel the same range.
+3. **Ends:** black at green's thin end (1 %), white at its dense end (0.5 %), the same range for
+   every channel. White / Black clip move these along 0, 0.1, 0.25, 0.5, 1, 1.5, 2, 3, 5, 8, 12 %.
+4. **Balance:** half of the remaining difference between the channels' averages is removed (a
+   frame's overall cast), the rest kept (a sunset stays warm).
+5. The normalised value goes through the look and the tone profile, then into light.
+
+**Per channel** (0.9 and earlier; also slides and B&W), in density (`−log10` of the linear sample):
 1. **Base:** the film base (orange mask plus fog) is removed as a per-channel density offset.
 2. **Balance:** most density changes across edges are changes of light, not of colour, so the
    channels' edge strengths give each dye layer's contrast relative to green. Only edges between
-   mid-tone pixels count (green density between its 10th and 80th percentiles): a large bright wall
-   or a dark area, where a scan's densities are least reliable, would otherwise tilt the balance.
+   mid-tone pixels count (green density between its 10th and 80th percentiles).
 3. **Ends:** each channel's black is its own darkest balanced density, so the shadows come out
-   neutral. White comes from the brightness histogram, shared by the channels, so no single channel
-   or object sets it. The brightest 5 % of the frame is then neutralised when it's nearly neutral
-   already (a white wall), and left alone when it's clearly coloured, with a fade between. White /
-   Black clip choose which stored percentile is the end: at 0, 5 % (white) and 3 % (black); each
-   step moves along 0, 0.1, 0.25, 0.5, 1, 1.5, 2, 3, 5, 8, 12 %.
+   neutral. White comes from the brightness histogram, shared by the channels. The brightest 5 % of
+   the frame is then neutralised when it's nearly neutral already (a white wall), and left alone when
+   it's clearly coloured, with a fade between. At 0, white is at 5 % and black at 3 %.
 4. The normalised value goes through the look and the tone profile, then into light.
 
-**Checked against references.** Three scans also converted with Negative Lab Pro, compared over the
-whole frame (mean difference in levels of 255, from 8-bit exports of the negatives; "in the app" marks
-your own renders from the app). The defaults are picked against all three together, so none is tuned
-to a single photo:
+**Checked against references.** Twelve frames also converted with Negative Lab Pro (its standard
+settings), each cropped to the picture and measured with a 3 % border buffer; the mean difference in
+levels of 255. Eight are camera and scanner raws (Fuji 400, Kodak and others; the defaults are picked
+against all twelve together, so none is tuned to a single photo); the last four are the earlier
+references, from 8-bit exports of the negatives:
 
-| Frame | v0.4 | v0.5 | v0.6 | v0.7 |
-|---|---|---|---|---|
-| Colour negative portrait, indoors | 19.6 | 9.9 | 8.9 | 10.7 |
-| Harman Phoenix 200 landscape, flatbed (Generic) | — | 14.7 (in the app) | 9.1 | 6.7 |
-| the same with the Phoenix 200 stock | — | 35.6 (in the app) | 9.3 | 6.5 |
-| Kodak 200 forest, daylight (Generic) | — | — | 14.9 (in the app) | 10.8 |
-| the same with the ColorPlus 200 stock | — | — | 14.9 (in the app) | 11.3 |
+| Frame | 0.9 (= Per channel) | 0.10 (Shared range) |
+|---|---|---|
+| Canyon landscape, flatbed TIFF | 31.1 | 24.6 |
+| Desert rocks and sky, flatbed TIFF | 28.9 | 21.5 |
+| Lodge under a deep blue sky, Fuji 400 | 63.3 | 30.2 |
+| Portrait outdoors, Fuji 400 | 20.1 | 18.6 |
+| Street panorama, half frames | 21.9 | 12.7 |
+| Indoor group portrait | 10.1 | 18.3 |
+| Street and lawn, scanner DNG | 19.2 | 17.1 |
+| Street, red car, scanner DNG | 27.8 | 16.8 |
+| Colour negative portrait, indoors | 13.0 | 19.1 |
+| Harman Phoenix 200 landscape, flatbed | 6.6 | 7.4 |
+| Kodak 200 forest, daylight | 10.5 | 15.0 |
+| Fuji 400 portrait outdoors | 35.8 | 24.4 |
+| **Mean** | **24.0** | **18.8** |
 
-A street frame without a reference renders slightly darker in v0.7 than v0.6 (about 5 levels), its
-white truck still near neutral. Negative Lab Pro has no stock-specific corrections, so these figures
-can only check that a stock stays gentle, not that its corrections are right.
+Shared range is darker and less saturated where 0.9 overexposed and oversaturated (the blue sky came
+out cyan-white, a lawn orange); on the indoor portraits it's cooler than the references, where
+*Per channel* stays closer. The renders in the app match these figures within a few levels once the
+app leaves the raw base tone out (above). Negative Lab Pro has no stock-specific corrections, so
+these figures can only check that a stock stays gentle, not that its corrections are right.
 
 Memory: the image is converted in chunks and measured in place, never copied whole, and the
 working memory is reserved when the host allocates the pixel block. Growing memory in the middle of
@@ -216,9 +248,9 @@ pixels, with each density computed once.
 
 ## Not done yet
 
-- **Tuning on real RAW captures.** The fit used an 8-bit export of the negative, whose display tone
-  curve bends the densities, so the in-app result (from the linear RAW) can differ slightly. More
-  reference pairs (your scan + a conversion you like) will tighten it.
+- **Warmth of indoor frames.** Shared range balances half a frame's overall cast away, which cools
+  tungsten-lit portraits more than the references do. More reference pairs (your scan + a conversion
+  you like, across stocks and light) will tell how much of a cast to keep.
 - **Roll analysis:** one shared measurement for a whole roll needs `_analysis` from several photos,
   which the ABI doesn't offer yet. The workaround is to measure a typical frame and copy the filter
   with its analysis.
@@ -229,6 +261,7 @@ pixels, with each density computed once.
 `cargo test` runs the maths natively:
 - a synthetic orange-masked grey ramp comes out neutral and monotonic in each balance mode;
 - a small saturated patch doesn't tint the neutrals;
+- sprocket holes in the measured area are ignored, and the border preview hides once measured;
 - every look × profile renders finite values;
 - the lookup tables match the exact functions;
 - analysis JSON round-trips, and the manifest's menus match the code;

@@ -31,9 +31,18 @@ const BASE_I: usize = 1;
 /// [`PERCENTILES`].
 const WHITE_I: i64 = 8;
 const BLACK_I: i64 = 7;
+/// Colour negatives (the cube-root domain): black at 1 % from the thin end, white at 0.5 % from the
+/// dense end, each channel normalised at 5 % from its thin end, and this share of the remaining
+/// difference between the channels' averages balanced; fitted to reference conversions.
+const CUBE_BLACK_I: i64 = 4;
+const CUBE_AVERAGE: f32 = 0.5;
+const CUBE_WHITE_I: i64 = 3;
+const CUBE_BALANCE_I: usize = 8;
+/// How much steeper than a profile's own power the cube-root domain's `t` is turned into light.
+const CUBE_POWER: f32 = 1.25;
 
 /// The analysis format; an older measurement is ignored (the photo is measured again).
-const ANALYSIS_VERSION: i64 = 6;
+const ANALYSIS_VERSION: i64 = 7;
 
 /// Density histogram range and resolution.
 const D_MIN: f32 = -0.5;
@@ -279,6 +288,9 @@ pub struct Params {
     pub soft_highs: bool,
     pub soft_lows: bool,
     pub show_border: bool,
+    /// The 0.9 method for colour negatives: each layer stretched to its own range, balanced by
+    /// edge contrast (`method` = "Per channel").
+    pub per_channel: bool,
     pub auto_exposure: bool,
     pub white_clip: i64,
     pub black_clip: i64,
@@ -331,6 +343,7 @@ impl Params {
             soft_highs: flag("softHighs"),
             soft_lows: flag("softLows"),
             show_border: flag("showBorder"),
+            per_channel: s("method") == "Per channel",
             auto_exposure: flag("autoExposure"),
             white_clip: int("whiteClip"),
             black_clip: int("blackClip"),
@@ -371,6 +384,10 @@ pub struct Analysis {
     pub hl_ref: [f32; 3],
     /// The sample grid measured (width, height, step in pixels): a diagnostic, not used by the conversion.
     pub measured: [u32; 3],
+    /// Per channel, the mean of the cube root of the linear sample (the domain colour negatives are
+    /// balanced in), and the median density.
+    pub vmean: [f32; 3],
+    pub dmid: [f32; 3],
     /// The border buffer it was measured with (`None` from before 0.9.2): the border preview hides
     /// once this matches the setting, so a measured photo exports without it.
     pub border: Option<f32>,
@@ -380,7 +397,7 @@ impl Analysis {
     pub fn to_json(&self) -> Value {
         json!({"version": ANALYSIS_VERSION, "percentiles": PERCENTILES, "lo": self.lo, "hi": self.hi,
                "gain": self.gain, "lumLo": self.lum_lo, "lumHi": self.lum_hi, "geLo": self.ge_lo, "lumMid": self.lum_mid, "hlRef": self.hl_ref,
-               "measured": self.measured, "borderBuffer": self.border})
+               "vmean": self.vmean, "dmid": self.dmid, "measured": self.measured, "borderBuffer": self.border})
     }
 
     pub fn from_json(v: &Value) -> Option<Analysis> {
@@ -415,6 +432,8 @@ impl Analysis {
             },
             lum_mid: floats(v.get("lumMid")?)?,
             hl_ref: floats(v.get("hlRef")?)?,
+            vmean: floats(v.get("vmean")?)?,
+            dmid: floats(v.get("dmid")?)?,
             measured: v.get("measured").and_then(|m| serde_json::from_value(m.clone()).ok()).unwrap_or_default(),
             border: v.get("borderBuffer").and_then(Value::as_f64).filter(|f| f.is_finite()).map(|f| f as f32),
         })
@@ -432,6 +451,8 @@ impl Analysis {
             ge_lo: [[0.0; NP]; 3],
             lum_mid: [0.5, 1.0, 1.5],
             hl_ref: [2.0; 3],
+            vmean: [0.5; 3],
+            dmid: [1.1; 3],
             measured: [0; 3],
             border: None,
         }
@@ -449,6 +470,13 @@ fn bin(d: f32) -> usize {
 
 fn bin_density(i: usize) -> f32 {
     D_MIN + (i as f32 + 0.5) * (D_MAX - D_MIN) / BINS as f32
+}
+
+/// The cube root of the linear sample whose density is `d`: the domain colour negatives are
+/// balanced and mapped in. Each channel gets the same range there and its own offset, as dye layers
+/// of one film respond alike; stretching each channel to its own range oversaturates.
+fn cube_root_of(d: f32) -> f32 {
+    10f32.powf(-d / 3.0)
 }
 
 /// A histogram that answers "the value below which `frac` of the samples lie".
@@ -598,12 +626,17 @@ pub fn analyze_with(pixel: impl Fn(usize) -> Option<[f32; 3]>, w: usize, h: usiz
     exclude_bare_light(&mut grid);
     // pass 1: per-channel and mean-density histograms
     let mut hists: Vec<Hist> = (0..4).map(|_| Hist::new()).collect();
+    let mut vsum = [0f64; 3];
+    let cube = Lut::new(D_MIN, D_MAX, 4400, cube_root_of);
     let cell = |gx: usize, gy: usize| grid.get(gy * gw + gx).copied().filter(|d| d[0].is_finite());
     for d in grid.iter().filter(|d| d[0].is_finite()) {
         for (k, v) in d.iter().copied().chain([(d[0] + d[1] + d[2]) / 3.0]).enumerate() {
             if let Some(hk) = hists.get_mut(k) {
                 hk.add(v);
             }
+        }
+        for (s, v) in vsum.iter_mut().zip(d) {
+            *s += f64::from(cube.get(*v));
         }
     }
     if hists[3].count == 0 {
@@ -612,6 +645,10 @@ pub fn analyze_with(pixel: impl Fn(usize) -> Option<[f32; 3]>, w: usize, h: usiz
     let mut a = Analysis::unmeasured();
     for (k, hk) in hists.iter().enumerate() {
         (a.lo[k], a.hi[k]) = hk.ends();
+    }
+    for c in 0..3 {
+        a.vmean[c] = (vsum[c] / hists[3].count as f64) as f32;
+        a.dmid[c] = hists[c].at(0.5);
     }
     // pass 2: edge energy per channel, between mid-tone pixels only (green density between its
     // 10th and 80th percentiles): large bright or dark areas, where a scan's densities are least
@@ -769,6 +806,10 @@ struct Plan {
     shadows: [f32; 3],
     highlights: [f32; 3],
     tinted: bool,
+    /// Colour negatives: density → cube root of the sample, and `t = (origin − that) · scale`.
+    cube: Option<Lut>,
+    /// …that cube root times this per channel first.
+    mul: [f32; 3],
     /// `t` (before tone) → `t` (after tone and sliders).
     tone: Lut,
     /// `t` (after tone, tint and fade) → linear light.
@@ -786,10 +827,33 @@ fn plan(p: &Params) -> Plan {
     let mut scale = [1.0; 3];
     // where the frame's median brightness lands in `t` (before the flip), for auto exposure
     let mut mid = 0.5;
+    let cube = !bw && !flip && !p.per_channel;
+    let mut mul = [1.0; 3];
     if bw {
         let (thin, dense) = (a.lo[3][thin_i], a.hi[3][dense_i].max(a.lo[3][thin_i] + 0.05));
         origin = [thin; 3];
         scale = [1.0 / (dense - thin); 3];
+    } else if cube {
+        // each channel divided by its own thin end (the mask removed: a grey's channels then
+        // agree), then in the cube-root domain (bright samples high): black at green's thin end,
+        // white at its dense end, every channel the same range, so the layers keep their contrast
+        let refd = |c: usize| a.lo[c][CUBE_BALANCE_I];
+        mul = [0, 1, 2].map(|c| 1.0 / cube_root_of(refd(c)));
+        let v = |c: usize, d: f32| cube_root_of(d - refd(c));
+        let (bi, wi) = (clip_index(p.black_clip, CUBE_BLACK_I), clip_index(p.white_clip, CUBE_WHITE_I));
+        let black = |c: usize| v(c, a.lo[c][bi]);
+        let range = |c: usize| (black(c) - v(c, a.hi[c][wi])).max(0.01);
+        // and half of what remains between the channels' averages (a cast of the frame) balanced
+        let average = |c: usize| a.vmean[c] * mul[c] - a.vmean[1] * mul[1];
+        for c in 0..3 {
+            (origin[c], scale[c]) = match p.wb {
+                // each channel to its own black and white
+                Wb::Color => (black(c), 1.0 / range(c)),
+                Wb::None => (black(1), 1.0 / range(1)),
+                _ => (black(1) + CUBE_AVERAGE * average(c), 1.0 / range(1)),
+            };
+        }
+        mid = (black(1) - v(1, a.dmid[1])) / range(1);
     } else if p.wb == Wb::Color {
         for c in 0..3 {
             let (thin, dense) = (a.lo[c][thin_i], a.hi[c][dense_i].max(a.lo[c][thin_i] + 0.05));
@@ -832,15 +896,21 @@ fn plan(p: &Params) -> Plan {
     let tint = p.tint + look.tint + st.tint;
     let offset = if bw { [0.0; 3] } else { [temp / 400.0, -tint / 400.0, -temp / 400.0] };
     let sat = if bw { 0.0 } else { (1.0 + (p.pre_saturation - 3.0) * 0.15) * look.sat * st.sat * p.profile.sat };
-    let crosstalk = if bw { 0.0 } else { look.crosstalk * st.crosstalk };
-    let pr = p.profile;
+    // the shared range keeps the layers' own saturation: half the cross-talk correction suits it
+    let crosstalk = if bw { 0.0 } else { look.crosstalk * st.crosstalk * if cube { 0.5 } else { 1.0 } };
+    let mut pr = p.profile;
+    // t in the cube-root domain needs a steeper power to reach the same light
+    if cube {
+        pr.power *= CUBE_POWER;
+    }
+    let power = pr.power;
     let contrast = p.contrast + look.contrast + st.contrast;
     let mut params = p.clone();
     params.darks += st.darks;
     if p.auto_exposure && p.analysis.is_some() {
         let mid = if flip { 1.0 - mid } else { mid };
         // lift a dark frame's median toward mid grey (at most 2 stops, never darker), and roll the highlights off
-        let light = mid.max(1e-3).powf(p.profile.power);
+        let light = mid.max(1e-3).powf(power);
         let stops = (AUTO_MID / light).log2().clamp(0.0, AUTO_MAX_STOPS);
         params.exposure += stops;
         params.soft_highs |= stops > 0.0;
@@ -849,7 +919,6 @@ fn plan(p: &Params) -> Plan {
     // the profile's and the look's lift (in t); the Fade and Glow sliders act on the display values below
     let fade = pr.lift + look.fade / 2.0;
     let (fade_s, glow_s) = ((p.fade / 50.0).clamp(-1.0, 1.0), (p.glow / 50.0).clamp(-1.0, 1.0));
-    let power = pr.power;
     let linear = Lut::new(0.0, T_MAX, 1300, move |t| {
         let t = fade + t.clamp(0.0, T_MAX) * (1.0 - fade);
         let l = shoulder(t.powf(power));
@@ -863,7 +932,8 @@ fn plan(p: &Params) -> Plan {
     let highlights = [look.highlights[0] + st.highlights[0], look.highlights[1] + st.highlights[1], look.highlights[2] + st.highlights[2]];
     let tinted = !bw && shadows.iter().chain(highlights.iter()).any(|v| *v != 0.0);
     let hue_sat = (!bw && st.hue_sat != FLAT).then_some(st.hue_sat);
-    Plan { origin, scale, flip, bw, offset, sat, crosstalk, hue_sat, shadows, highlights, tinted, tone, linear }
+    let cube = cube.then(|| Lut::new(D_MIN, D_MAX, 4400, cube_root_of));
+    Plan { origin, scale, flip, bw, offset, sat, crosstalk, hue_sat, shadows, highlights, tinted, cube, mul, tone, linear }
 }
 
 /// The saturation factor for the hue of `t` (an RGB triple around its mean), from six sectors
@@ -1039,8 +1109,13 @@ fn convert_with(px: &mut [f32], pl: &Plan, log: &FastLog) {
         }
         let mut t = [0.0f32; 3];
         for k in 0..3 {
-            let v = (d[k] - pl.origin[k]) * pl.scale[k];
-            t[k] = if pl.flip { 1.0 - v } else { v };
+            t[k] = match &pl.cube {
+                Some(cube) => (pl.origin[k] - pl.mul[k] * cube.get(d[k])) * pl.scale[k],
+                None => {
+                    let v = (d[k] - pl.origin[k]) * pl.scale[k];
+                    if pl.flip { 1.0 - v } else { v }
+                }
+            };
         }
         if pl.crosstalk != 0.0 {
             // dye cross-talk correction; rows sum to 1 so neutrals stay neutral
@@ -1078,10 +1153,14 @@ mod tests {
     use super::*;
 
     /// A synthetic colour negative: an orange mask (per-channel base density) plus a scene whose
-    /// log exposure is spread over each dye layer with its own contrast; a clear film border around it.
+    /// log exposure is spread over the dye layers alike; a clear film border around it.
     fn negative(w: usize, h: usize) -> Vec<f32> {
+        negative_with(w, h, [0.65; 3])
+    }
+
+    /// [`negative`] with each dye layer's own contrast.
+    fn negative_with(w: usize, h: usize, gamma: [f32; 3]) -> Vec<f32> {
         let base = [0.25f32, 0.55, 0.85];
-        let gamma = [0.6f32, 0.65, 0.7];
         let mut px = Vec::with_capacity(w * h * 3);
         for y in 0..h {
             for x in 0..w {
@@ -1109,9 +1188,17 @@ mod tests {
     #[test]
     fn a_grey_negative_comes_out_neutral_and_increasing_in_every_wb_mode() {
         let (w, h) = (200, 40);
-        for wb in ["Auto-Neutral", "Auto-Color"] {
-            let mut px = negative(w, h);
-            let p = measured(&px, w, h, json!({"stock": "None (as scanned)", "look": "Neutral", "wbMode": wb}));
+        // the shared range keeps layers of unequal contrast unequal, as the film has them; the
+        // per-channel method stretches each layer to its own range in density
+        let cases = [
+            ("Shared range", "Auto-Neutral", [0.65; 3]),
+            ("Shared range", "Auto-Color", [0.65; 3]),
+            ("Per channel", "Auto-Neutral", [0.6, 0.65, 0.7]),
+        ];
+        for (method, wb, gamma) in cases {
+            let mut px = negative_with(w, h, gamma);
+            let wb = wb.to_string() + " / " + method;
+            let p = measured(&px, w, h, json!({"stock": "None (as scanned)", "look": "Neutral", "wbMode": wb.split(" / ").next(), "method": method}));
             convert(&mut px, &p);
             let row = &px[(h / 2) * w * 3..(h / 2 + 1) * w * 3];
             let mut last = -1.0;

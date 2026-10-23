@@ -27,15 +27,17 @@ use serde_json::Value;
 pub const MANIFEST: &str = r#"{
   "id": "io.github.nwh212.chromaneg",
   "name": "ChromaNeg",
-  "version": "0.9.1",
+  "version": "0.10.0",
   "kind": "filter",
   "stage": "source",
   "analyzeArea": "crop",
+  "baseTone": "neutral",
   "description": "Converts film negatives and slides. Add it to a photo, set Type and Border buffer, then press Measure. Measure again after changing Border buffer.",
   "author": "",
   "overlap": 0,
   "params": {
     "filmType":     {"type": "choice", "label": "Type", "options": ["Color Negative", "B&W Negative", "Positive (Slide)"], "default": "Color Negative"},
+    "method":       {"type": "choice", "label": "Method", "options": ["Shared range", "Per channel"], "default": "Shared range"},
     "look":         {"type": "choice", "label": "Look", "options": ["Standard", "Neutral", "Rich", "Clean Contrast", "Clean Contrast +", "Golden Hour", "Portrait Warm", "Portrait Airy", "Fashion Cool", "Crisp Scan", "Green Shadows", "Vivid Green", "Night Cine", "Archive Print"], "default": "Standard"},
     "stock":        {"type": "choice", "label": "Film stock", "options": ["Generic", "None (as scanned)", "Kodak Portra 160", "Kodak Portra 400", "Kodak Portra 800", "Kodak Ektar 100", "Kodak Gold 200", "Kodak UltraMax 400", "Kodak ColorPlus 200", "Kodak Vision3 50D", "Kodak Vision3 250D", "Kodak Vision3 500T", "CineStill 50D", "CineStill 400D", "CineStill 800T", "Fujifilm Superia X-TRA 400", "Fujicolor C200", "Fujifilm 200", "Fujifilm 400", "Fujifilm Pro 400H", "Harman Phoenix 200", "Harman Phoenix II", "Lomography 400", "Lomography 800"], "default": "Generic"},
     "preSaturation":{"type": "int",    "label": "Pre-saturation", "min": 1, "max": 5, "default": 3},

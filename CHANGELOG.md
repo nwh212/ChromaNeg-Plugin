@@ -4,6 +4,19 @@ Measurements made with one version can need **Measure** again in a later one; th
 "Reference error" is the mean difference from a Negative Lab Pro conversion of the same scan, in
 levels of 255 (see the README).
 
+## 0.10.0 (Measure again)
+- **New default method for colour negatives, "Shared range"**: the dye layers get the same
+  contrast and are balanced by their offsets, as fitted to Negative Lab Pro conversions of eight
+  camera and scanner raws. Blue skies stay deep blue instead of cyan-white, lawns green instead of
+  orange, and frames are no longer overexposed or oversaturated. Reference error over twelve frames:
+  24.0 → 18.8. The 0.9 method stays as **Method ▸ Per channel**, closer on some indoor portraits.
+- **Standard tone profile darker in the mids** with Shared range (its fitted curve).
+- **Asks the app not to tone raw files a second time** (`"baseTone": "neutral"`): with an app that
+  supports it, a converted RAW is shown as ChromaNeg renders it, without the camera's contrast curve
+  on top (see the README).
+- **Border buffer preview leaves exports alone**: it shows until you press Measure with that border
+  buffer, so a measured photo never exports with it.
+
 ## 0.9.1 (Measure again)
 - **Sprocket holes are ignored**: bare light inside the measured area (sprocket holes, gaps in the
   film holder) no longer sets the black point. Before, holes in a narrow border buffer gave a
