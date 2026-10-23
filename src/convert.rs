@@ -913,7 +913,7 @@ impl Converter {
 
 fn convert_with(px: &mut [f32], pl: &Plan, log: &FastLog) {
     let (sh, hl, tinted) = (pl.shadows, pl.highlights, pl.tinted);
-    for c in px.chunks_exact_mut(3) {
+    for c in px.as_chunks_mut::<3>().0 {
         let mut d = [log.density(c[0]), log.density(c[1]), log.density(c[2])];
         if pl.bw {
             d = [(d[0] + d[1] + d[2]) / 3.0; 3];
@@ -996,7 +996,7 @@ mod tests {
             convert(&mut px, &p);
             let row = &px[(h / 2) * w * 3..(h / 2 + 1) * w * 3];
             let mut last = -1.0;
-            for c in row.chunks_exact(3).skip(w / 20 + 1).take(w - w / 10 - 2) {
+            for c in row.as_chunks::<3>().0.iter().skip(w / 20 + 1).take(w - w / 10 - 2) {
                 assert!(spread(c) < 0.02, "{wb}: not neutral: {c:?}");
                 assert!(c[1] >= last - 1e-3, "{wb}: not monotonic");
                 last = c[1];
@@ -1152,7 +1152,7 @@ mod tests {
             let mut px = px.to_vec();
             let p = measured(&px, w, h, json!({"autoExposure": auto, "borderBuffer": border}));
             convert(&mut px, &p);
-            let mut g: Vec<f32> = px.chunks_exact(3).map(|c| c[1]).collect();
+            let mut g: Vec<f32> = px.as_chunks::<3>().0.iter().map(|c| c[1]).collect();
             g.sort_by(f32::total_cmp);
             g[g.len() / 2]
         };
