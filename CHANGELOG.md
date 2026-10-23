@@ -4,6 +4,16 @@ Measurements made with one version can need **Measure** again in a later one; th
 "Reference error" is the mean difference from a Negative Lab Pro conversion of the same scan, in
 levels of 255 (see the README).
 
+## 0.11.0
+- **Looks merged into the Film stock menu** (now "Film stock / look"): the stocks, by brand, then
+  six creative looks at the end as "Creative: …" (Golden Hour, Portrait Warm, Portrait Airy, Crisp
+  Scan, Night Cine, Archive Print), rendering exactly as the looks did. An edit that used a look
+  shows without it after updating: pick the "Creative: …" entry again. Neutral, Rich, Clean
+  Contrast, Fashion Cool, Green Shadows and Vivid Green are gone.
+- No other change in the conversion; measurements from 0.10 still apply.
+- For developers: the project is a workspace now (conversion, plug-in plumbing, plug-in), the
+  presets live in a data file, and a reference bench checks every change (see DEVELOPING.md).
+
 ## 0.10.0 (Measure again)
 - **New default method for colour negatives, "Shared range"**: the dye layers get the same
   contrast and are balanced by their offsets, as fitted to Negative Lab Pro conversions of eight

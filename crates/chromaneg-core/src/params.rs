@@ -26,7 +26,6 @@ pub enum Wb {
 #[derive(Clone, Debug)]
 pub struct Params {
     pub film: FilmType,
-    pub look: Look,
     pub stock: Stock,
     pub pre_saturation: f32,
     pub border: f32,
@@ -80,7 +79,6 @@ impl Params {
                 "Positive (Slide)" => FilmType::Positive,
                 _ => FilmType::ColorNegative,
             },
-            look: LOOKS.iter().find(|l| l.name == s("look")).copied().unwrap_or(LOOKS[0]),
             // `colorModel` is the setting before film stocks: "None" maps to no correction
             stock: STOCKS.iter().find(|k| k.name == s("stock")).copied().unwrap_or(if s("colorModel") == "None" { STOCKS[1] } else { STOCKS[0] }),
             pre_saturation: num("preSaturation", 3.0),

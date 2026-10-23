@@ -1,14 +1,13 @@
-# ChromaNeg's presets: tone profiles, looks and film stocks, in menu order (the first of each is
+# ChromaNeg's presets: tone profiles and film stocks (with the creative looks at the end), in menu order (the first of each is
 # the default). The build turns this file into constants (build.rs), so editing it is all a new or
 # changed preset takes; the menus in the manifest follow. A field left out takes the neutral value:
 #
 # profile: slopes [1, 1, 1] (the curve's slope at the shadows, the midpoint and the highlights),
 #          power 1 (t -> linear light), lift 0 (black floor), gamma 1 (midtones), sat 1
-# look:    sat 1, contrast 0, temp 0, tint 0, shadows / highlights [0, 0, 0] (added to R, G, B in t
-#          after the tone curve), crosstalk 1 (dye cross-talk correction), fade 0
 # stock:   crosstalk 1, sat 1, contrast 0, darks 0, temp 0, tint 0 (< 0 counters magenta),
-#          shadows / highlights [0, 0, 0], hue_sat [1, 1, 1, 1, 1, 1] (saturation by hue: red,
-#          yellow, green, cyan, blue, magenta)
+#          shadows / highlights [0, 0, 0] (added to R, G, B in t after the tone curve),
+#          hue_sat [1, 1, 1, 1, 1, 1] (saturation by hue: red, yellow, green, cyan, blue, magenta),
+#          fade 0 (lifts black)
 
 
 # ------------------------------------------------------------------------------------------------
@@ -86,138 +85,6 @@ power = 2.0
 [[profile]]
 name = "Linear Flat"
 power = 1.4
-
-# ------------------------------------------------------------------------------------------------
-# Looks: own designs; the notes say what each is after
-
-
-# balanced, a touch of density
-[[look]]
-name = "Standard"
-
-# as measured: no cross-talk correction, slightly muted
-[[look]]
-name = "Neutral"
-sat = 0.92
-contrast = -4.0
-crosstalk = 0.0
-
-# deeper colour and contrast
-[[look]]
-name = "Rich"
-sat = 1.18
-contrast = 8.0
-temp = 2.0
-crosstalk = 1.3
-
-# clean whites, firm blacks
-[[look]]
-name = "Clean Contrast"
-sat = 1.02
-contrast = 12.0
-
-[[look]]
-name = "Clean Contrast +"
-sat = 1.08
-contrast = 22.0
-shadows = [-0.01, -0.01, -0.01]
-crosstalk = 1.2
-
-# consumer gold film: warm, yellow highlights, saturated
-[[look]]
-name = "Golden Hour"
-sat = 1.12
-contrast = 4.0
-temp = 9.0
-tint = 1.0
-shadows = [0.0, -0.004, -0.012]
-highlights = [0.012, 0.006, -0.02]
-crosstalk = 1.1
-
-# professional portrait film: low contrast, warm skin, gentle saturation
-[[look]]
-name = "Portrait Warm"
-sat = 0.9
-contrast = -8.0
-temp = 5.0
-tint = 2.0
-shadows = [0.004, 0.0, -0.004]
-highlights = [0.01, 0.004, -0.008]
-crosstalk = 0.8
-fade = 0.01
-
-# the airy version: bright, lifted, pastel
-[[look]]
-name = "Portrait Airy"
-sat = 0.82
-contrast = -14.0
-temp = 3.0
-tint = 2.0
-shadows = [0.01, 0.01, 0.012]
-highlights = [0.006, 0.004, 0.0]
-crosstalk = 0.6
-fade = 0.05
-
-# high-key fashion: cool, cleaner, contrasty
-[[look]]
-name = "Fashion Cool"
-sat = 0.88
-contrast = 10.0
-temp = -6.0
-tint = -1.0
-shadows = [-0.004, 0.0, 0.01]
-highlights = [0.0, 0.0, 0.006]
-
-# lab scanner, crisp: cyan-leaning blues, firm greens
-[[look]]
-name = "Crisp Scan"
-sat = 1.1
-contrast = 8.0
-temp = -2.0
-tint = -3.0
-shadows = [-0.006, 0.002, 0.006]
-highlights = [0.0, 0.0, 0.004]
-crosstalk = 1.4
-
-# lab scanner, mellow: green-tinted shadows, warm highlights
-[[look]]
-name = "Green Shadows"
-sat = 1.04
-contrast = 5.0
-temp = 2.0
-tint = -4.0
-shadows = [-0.012, 0.012, -0.004]
-highlights = [0.008, 0.004, -0.006]
-
-# consumer film with lively greens and cool shadows
-[[look]]
-name = "Vivid Green"
-sat = 1.15
-contrast = 6.0
-temp = -3.0
-tint = -6.0
-shadows = [-0.006, 0.006, 0.006]
-crosstalk = 1.2
-
-# tungsten cine stock in daylight: cool teal shadows, warm highlights
-[[look]]
-name = "Night Cine"
-sat = 1.05
-contrast = 6.0
-temp = -8.0
-shadows = [-0.016, 0.004, 0.016]
-highlights = [0.016, 0.004, -0.012]
-
-# optical print on archival paper: deep blacks, rich reds, warm
-[[look]]
-name = "Archive Print"
-sat = 1.08
-contrast = 10.0
-temp = 4.0
-tint = 2.0
-shadows = [0.006, -0.004, -0.006]
-highlights = [0.006, 0.0, -0.006]
-crosstalk = 1.2
 
 # ------------------------------------------------------------------------------------------------
 # Film stocks: gentle corrections of reported tendencies (sources in the README)
@@ -387,3 +254,66 @@ sat = 1.06
 name = "Lomography 800"
 sat = 0.98
 contrast = -0.7
+
+# ------------------------------------------------------------------------------------------------
+# Creative looks: own designs, at the end of the Film stock menu; the notes say what each is after
+
+[[stock]]
+name = "Creative: Golden Hour"
+sat = 1.12
+contrast = 4.0
+temp = 9.0
+tint = 1.0
+shadows = [0.0, -0.004, -0.012]
+highlights = [0.012, 0.006, -0.02]
+crosstalk = 1.1
+
+[[stock]]
+name = "Creative: Portrait Warm"
+sat = 0.9
+contrast = -8.0
+temp = 5.0
+tint = 2.0
+shadows = [0.004, 0.0, -0.004]
+highlights = [0.01, 0.004, -0.008]
+crosstalk = 0.8
+fade = 0.01
+
+[[stock]]
+name = "Creative: Portrait Airy"
+sat = 0.82
+contrast = -14.0
+temp = 3.0
+tint = 2.0
+shadows = [0.01, 0.01, 0.012]
+highlights = [0.006, 0.004, 0.0]
+crosstalk = 0.6
+fade = 0.05
+
+[[stock]]
+name = "Creative: Crisp Scan"
+sat = 1.1
+contrast = 8.0
+temp = -2.0
+tint = -3.0
+shadows = [-0.006, 0.002, 0.006]
+highlights = [0.0, 0.0, 0.004]
+crosstalk = 1.4
+
+[[stock]]
+name = "Creative: Night Cine"
+sat = 1.05
+contrast = 6.0
+temp = -8.0
+shadows = [-0.016, 0.004, 0.016]
+highlights = [0.016, 0.004, -0.012]
+
+[[stock]]
+name = "Creative: Archive Print"
+sat = 1.08
+contrast = 10.0
+temp = 4.0
+tint = 2.0
+shadows = [0.006, -0.004, -0.006]
+highlights = [0.006, 0.0, -0.006]
+crosstalk = 1.2

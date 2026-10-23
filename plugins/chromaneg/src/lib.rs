@@ -12,10 +12,10 @@
 
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
-use chromaneg_core::{BorderOverlay, Converter, LOOKS, PROFILES, Params, STOCKS, analyze_with};
+use chromaneg_core::{BorderOverlay, Converter, PROFILES, Params, STOCKS, analyze_with};
 
-/// The manifest as written, in dialog order; `@version` and the menus of looks, stocks and
-/// profiles are filled in from the code by [`manifest`].
+/// The manifest as written, in dialog order; `@version` and the menus of stocks (with the creative
+/// looks) and profiles are filled in from the code by [`manifest`].
 const TEMPLATE: &str = include_str!("../manifest.json");
 
 /// The manifest the host reads.
@@ -23,7 +23,6 @@ pub fn manifest() -> String {
     let names = |n: Vec<&str>| serde_json::Value::from(n).to_string();
     TEMPLATE
         .replace("\"@version\"", &format!("\"{}\"", env!("CARGO_PKG_VERSION")))
-        .replace("\"@looks\"", &names(LOOKS.iter().map(|l| l.name).collect()))
         .replace("\"@stocks\"", &names(STOCKS.iter().map(|s| s.name).collect()))
         .replace("\"@profiles\"", &names(PROFILES.iter().map(|p| p.name).collect()))
 }
@@ -79,7 +78,6 @@ mod tests {
         assert_eq!(m["version"], env!("CARGO_PKG_VERSION"));
         let options =
             |key: &str| -> Vec<String> { m["params"][key]["options"].as_array().unwrap().iter().map(|v| v.as_str().unwrap().into()).collect() };
-        assert_eq!(options("look"), LOOKS.iter().map(|l| l.name).collect::<Vec<_>>());
         assert_eq!(options("stock"), STOCKS.iter().map(|s| s.name).collect::<Vec<_>>());
         assert_eq!(options("toneProfile"), PROFILES.iter().map(|p| p.name).collect::<Vec<_>>());
         // every choice's default is one of its options

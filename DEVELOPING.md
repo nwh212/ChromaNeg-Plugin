@@ -4,7 +4,7 @@
 
 | Path | What |
 |---|---|
-| `crates/chromaneg-core/presets.toml` | tone profiles, looks and film stocks, as data |
+| `crates/chromaneg-core/presets.toml` | tone profiles, film stocks and creative looks, as data |
 | `crates/chromaneg-core/src/` | the conversion: `params.rs` (what the host sends), `analysis.rs` (Measure), `plan.rs` (how each sample becomes light: methods, balance, tone), `convert.rs`, `overlay.rs`, `math.rs` (tables and curves), `tests.rs` |
 | `crates/pixel-filter` | plug-in plumbing shared by every pixel filter |
 | `plugins/chromaneg` | the plug-in: `manifest.json` and the ABI exports (thin) |
@@ -13,7 +13,8 @@
 
 ## Everyday changes
 
-- **A preset** (stock, look, tone profile): edit `presets.toml`. A field left out is neutral; a typo
+- **A preset** (stock, creative look, tone profile): edit `presets.toml`; a creative look is a
+  `[[stock]]` named "Creative: …", at the end. A field left out is neutral; a typo
   stops the build with a message. The plug-in's menus follow on their own.
 - **A setting**: add it to `plugins/chromaneg/manifest.json` (dialog order), read it in
   `Params::from_json` (`params.rs`), use it in `plan.rs`.

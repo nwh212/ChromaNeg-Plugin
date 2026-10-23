@@ -44,22 +44,23 @@ struct Frame {
     shift: Option<[usize; 2]>,
 }
 
-/// Settings the golden hashes cover: every method, film type, WB mode and a spread of the rest.
+/// Settings the golden hashes cover: every method, film type, WB mode and a spread of the rest
+/// (changing this list means saving the hashes again).
 fn golden_params() -> Vec<Value> {
     vec![
         json!({}),
         json!({"method": "Per channel"}),
         json!({"filmType": "B&W Negative"}),
         json!({"filmType": "Positive (Slide)"}),
-        json!({"look": "Golden Hour", "stock": "Kodak Portra 400"}),
-        json!({"look": "Night Cine", "stock": "Harman Phoenix 200", "toneProfile": "Cine Log"}),
+        json!({"stock": "Creative: Golden Hour"}),
+        json!({"stock": "Harman Phoenix 200", "toneProfile": "Cine Log"}),
         json!({"toneProfile": "Hard", "glow": 30, "fade": -20, "exposure": 0.7, "contrast": 12}),
         json!({"wbMode": "Auto-Color"}),
         json!({"wbMode": "None", "temp": 15, "tint": -8}),
         json!({"wbMode": "Auto-Warm", "softHighs": true, "softLows": true}),
         json!({"whiteClip": 3, "blackClip": -2, "lights": 20, "darks": -15, "whites": 10, "blacks": -10, "brightness": 12}),
         json!({"autoExposure": true, "preSaturation": 5}),
-        json!({"method": "Per channel", "wbMode": "Auto-Cool", "look": "Portrait Airy"}),
+        json!({"method": "Per channel", "wbMode": "Auto-Cool", "stock": "Creative: Portrait Airy"}),
         json!({"stock": "CineStill 800T", "toneProfile": "Linear Deep"}),
         json!({"glow": -40, "fade": 45, "toneProfile": "Shadow Soft"}),
         json!({"borderBuffer": 15, "showBorder": true}),

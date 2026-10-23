@@ -1,5 +1,6 @@
-//! Tone profiles, looks and film stocks: the menus' entries and their values. The values live in
-//! `presets.toml` (edit that); the build turns them into [`PROFILES`], [`LOOKS`] and [`STOCKS`],
+//! Tone profiles and film stocks (the creative looks are the stocks named "Creative: …"): the
+//! menus' entries and their values. The values live in `presets.toml` (edit that); the build turns
+//! them into [`PROFILES`] and [`STOCKS`],
 //! in menu order, the first of each being the default.
 
 /// A tone profile: a curve through (0,0), (½,½), (1,1) with these slopes at the shadows, the
@@ -13,22 +14,6 @@ pub struct Profile {
     pub lift: f32,
     pub gamma: f32,
     pub sat: f32,
-}
-
-/// A look: offsets layered on top of the sliders (so the sliders still start at 0).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Look {
-    pub name: &'static str,
-    pub sat: f32,
-    pub contrast: f32,
-    pub temp: f32,
-    pub tint: f32,
-    /// Added to R, G, B in the shadows and in the highlights (in `t`, after the tone curve).
-    pub shadows: [f32; 3],
-    pub highlights: [f32; 3],
-    /// Dye cross-talk correction strength (0 = none, 1 = the Basic colour model's).
-    pub crosstalk: f32,
-    pub fade: f32,
 }
 
 /// A film stock's gentle correction: what Auto-Neutral can't fix on its own (it already removes a
@@ -51,6 +36,8 @@ pub struct Stock {
     pub highlights: [f32; 3],
     /// Saturation by hue: red, yellow, green, cyan, blue, magenta (1 = unchanged).
     pub hue_sat: [f32; 6],
+    /// Lifts black (in `t`, as a profile's lift; the creative looks' matte).
+    pub fade: f32,
 }
 
 include!(concat!(env!("OUT_DIR"), "/presets.rs"));

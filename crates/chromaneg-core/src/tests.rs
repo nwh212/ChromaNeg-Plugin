@@ -46,7 +46,7 @@ fn a_grey_negative_comes_out_neutral_and_increasing_in_every_wb_mode() {
     for (method, wb, gamma) in cases {
         let mut px = negative_with(w, h, gamma);
         let wb = wb.to_string() + " / " + method;
-        let p = measured(&px, w, h, json!({"stock": "None (as scanned)", "look": "Neutral", "wbMode": wb.split(" / ").next(), "method": method}));
+        let p = measured(&px, w, h, json!({"stock": "None (as scanned)", "wbMode": wb.split(" / ").next(), "method": method}));
         convert(&mut px, &p);
         let row = &px[(h / 2) * w * 3..(h / 2 + 1) * w * 3];
         let mut last = -1.0;
@@ -69,7 +69,7 @@ fn a_small_saturated_object_doesnt_tint_the_neutrals() {
             px[(y * w + x) * 3] = 10f32.powf(-3.0);
         }
     }
-    let p = measured(&px, w, h, json!({"stock": "None (as scanned)", "look": "Neutral"}));
+    let p = measured(&px, w, h, json!({"stock": "None (as scanned)"}));
     convert(&mut px, &p);
     let c = &px[(60 * w + 100) * 3..(60 * w + 100) * 3 + 3];
     assert!(spread(c) < 0.03, "mid grey tinted: {c:?}");
@@ -102,15 +102,15 @@ fn analysis_round_trips_through_json() {
 }
 
 #[test]
-fn every_look_and_profile_renders_finite_values() {
+fn every_stock_and_profile_renders_finite_values() {
     let (w, h) = (64, 32);
     let px0 = negative(w, h);
-    for l in LOOKS {
+    for st in STOCKS {
         for pr in PROFILES {
             let mut px = px0.clone();
-            let p = measured(&px, w, h, json!({"look": l.name, "toneProfile": pr.name}));
+            let p = measured(&px, w, h, json!({"stock": st.name, "toneProfile": pr.name}));
             convert(&mut px, &p);
-            assert!(px.iter().all(|v| v.is_finite() && (-0.01..=1.01).contains(v)), "{} / {}", l.name, pr.name);
+            assert!(px.iter().all(|v| v.is_finite() && (-0.01..=1.01).contains(v)), "{} / {}", st.name, pr.name);
         }
     }
 }
@@ -149,7 +149,8 @@ fn every_stock_keeps_its_tone_changes_gentle() {
         px
     };
     let generic = render("Generic");
-    for st in STOCKS {
+    // the film stocks, not the creative looks (bold by design)
+    for st in STOCKS.iter().filter(|st| !st.name.starts_with("Creative: ")) {
         let px = render(st.name);
         let row = (h / 2) * w * 3;
         for x in (w / 10..w - w / 10).step_by(10) {

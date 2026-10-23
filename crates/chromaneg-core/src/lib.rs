@@ -16,9 +16,9 @@
 //!    never from one channel alone, so a red sign or a blue sky can't tilt the colour.
 //!
 //! The result `t` (0 = black, 1 = white, a normalised log exposure) is shaped by the tone profile,
-//! the look and the sliders, and goes back to linear light at the end.
+//! the film stock and the sliders, and goes back to linear light at the end.
 //!
-//! Modules: [`params`] (what the host sends), [`presets`] (profiles, looks, stocks), [`analysis`]
+//! Modules: [`params`] (what the host sends), [`presets`] (profiles, stocks and creative looks), [`analysis`]
 //! (Measure), [`plan`] (how each sample becomes light), [`convert`] (running it), [`overlay`]
 //! (the border buffer preview), and small numeric helpers in `math`.
 
@@ -38,4 +38,4 @@ pub use analysis::{Analysis, NP, PERCENTILES, analyze, analyze_with};
 pub use convert::{Converter, convert};
 pub use overlay::BorderOverlay;
 pub use params::{FilmType, Params, Wb};
-pub use presets::{LOOKS, Look, PROFILES, Profile, STOCKS, Stock};
+pub use presets::{PROFILES, Profile, STOCKS, Stock};

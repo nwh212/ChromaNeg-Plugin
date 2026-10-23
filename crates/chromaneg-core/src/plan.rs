@@ -116,28 +116,26 @@ pub(crate) fn plan(p: &Params) -> Plan {
         }
         mid = (a.lum_mid[1] - thin_mean) / (dense - thin_mean);
     }
-    let look = p.look;
     let st = p.stock;
     let temp = p.temp
-        + look.temp
         + st.temp
         + match p.wb {
             Wb::Warm => 10.0,
             Wb::Cool => -10.0,
             _ => 0.0,
         };
-    let tint = p.tint + look.tint + st.tint;
+    let tint = p.tint + st.tint;
     let offset = if bw { [0.0; 3] } else { [temp / 400.0, -tint / 400.0, -temp / 400.0] };
-    let sat = if bw { 0.0 } else { (1.0 + (p.pre_saturation - 3.0) * 0.15) * look.sat * st.sat * p.profile.sat };
+    let sat = if bw { 0.0 } else { (1.0 + (p.pre_saturation - 3.0) * 0.15) * st.sat * p.profile.sat };
     // the shared range keeps the layers' own saturation: half the cross-talk correction suits it
-    let crosstalk = if bw { 0.0 } else { look.crosstalk * st.crosstalk * if cube { 0.5 } else { 1.0 } };
+    let crosstalk = if bw { 0.0 } else { st.crosstalk * if cube { 0.5 } else { 1.0 } };
     let mut pr = p.profile;
     // t in the cube-root domain needs a steeper power to reach the same light
     if cube {
         pr.power *= CUBE_POWER;
     }
     let power = pr.power;
-    let contrast = p.contrast + look.contrast + st.contrast;
+    let contrast = p.contrast + st.contrast;
     let mut params = p.clone();
     params.darks += st.darks;
     if p.auto_exposure && p.analysis.is_some() {
@@ -149,8 +147,8 @@ pub(crate) fn plan(p: &Params) -> Plan {
         params.soft_highs |= stops > 0.0;
     }
     let tone = Lut::new(-0.6, 1.6, 2200, move |t| tone(t, &params, contrast, &pr));
-    // the profile's and the look's lift (in t); the Fade and Glow sliders act on the display values below
-    let fade = pr.lift + look.fade / 2.0;
+    // the profile's and the stock's lift (in t); the Fade and Glow sliders act on the display values below
+    let fade = pr.lift + st.fade / 2.0;
     let (fade_s, glow_s) = ((p.fade / 50.0).clamp(-1.0, 1.0), (p.glow / 50.0).clamp(-1.0, 1.0));
     let linear = Lut::new(0.0, T_MAX, 1300, move |t| {
         let t = fade + t.clamp(0.0, T_MAX) * (1.0 - fade);
@@ -161,8 +159,8 @@ pub(crate) fn plan(p: &Params) -> Plan {
         let v = display_curve(display_curve(srgb_encode(l), &FADE_CURVE, fade_s), &GLOW_CURVE, glow_s);
         srgb_decode(v)
     });
-    let shadows = [look.shadows[0] + st.shadows[0], look.shadows[1] + st.shadows[1], look.shadows[2] + st.shadows[2]];
-    let highlights = [look.highlights[0] + st.highlights[0], look.highlights[1] + st.highlights[1], look.highlights[2] + st.highlights[2]];
+    let shadows = st.shadows;
+    let highlights = st.highlights;
     let tinted = !bw && shadows.iter().chain(highlights.iter()).any(|v| *v != 0.0);
     let hue_sat = (!bw && st.hue_sat != [1.0; 6]).then_some(st.hue_sat);
     let cube = cube.then(|| Lut::new(D_MIN, D_MAX, 4400, cube_root_of));

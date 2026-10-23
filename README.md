@@ -4,7 +4,7 @@ Film negative conversion for [Chromaforge](https://github.com/emmertex/lightcraf
 below), the open-source raw developer. ChromaNeg is a WebAssembly pixel-filter plug-in that turns camera
 or scanner captures of colour negatives, black-and-white negatives and slides into positives, in the
 spirit of the two-step negative-conversion tools: **measure** the frame once, then every render
-**converts** with that measurement. It adds film-stock corrections, looks, tone profiles, and Glow / Fade.
+**converts** with that measurement. It adds film-stock corrections, creative looks, tone profiles, and Glow / Fade.
 
 It uses the app's pixel-filter ABI (PhotoCraft plug-in ABI v1 with the `pc_analyze` v1.1 proposal; see
 the app's `docs/plugins.md` ▸ *Pixel filters*), runs in its sandbox and asks for no permissions.
@@ -46,8 +46,8 @@ Rust 1.88 or newer. `cargo test --workspace` runs everything natively (see *Test
 
 | Path | What |
 |---|---|
-| `crates/chromaneg-core/presets.toml` | the tone profiles, looks and film stocks as data: add or change one here (each lists only what differs from neutral; a typo stops the build with a message) |
-| `crates/chromaneg-core` | the conversion, independent of the plug-in ABI: `params` (what the host sends), `presets` (profiles, looks, stocks), `analysis` (Measure), `plan` (how each sample becomes light), `convert`, `overlay` (border buffer preview) |
+| `crates/chromaneg-core/presets.toml` | the tone profiles, film stocks and creative looks as data: add or change one here (each lists only what differs from neutral; a typo stops the build with a message) |
+| `crates/chromaneg-core` | the conversion, independent of the plug-in ABI: `params` (what the host sends), `presets` (profiles, stocks), `analysis` (Measure), `plan` (how each sample becomes light), `convert`, `overlay` (border buffer preview) |
 | `crates/pixel-filter` | the plug-in plumbing any pixel filter needs (memory blocks, parameters, chunked conversion, the ABI checks), so a new plug-in is only its manifest and its maths |
 | `plugins/chromaneg` | the plug-in: `manifest.json` (dialog order; the version and the menus are filled in from the code) and the ABI exports |
 | `tools/bench`, `tools/dump-source` | the reference bench and its input converter (see DEVELOPING.md) |
@@ -69,9 +69,9 @@ To change ChromaNeg, see [DEVELOPING.md](DEVELOPING.md): where things are, the r
    everything outside the measured area is dimmed in safelight red until you press **Measure** with
    that border buffer, so exports of a measured photo never show it. Then press **Measure**. Until you measure, the filter only inverts the image, and the orange cast
    stays. After changing the crop or the border buffer, press Measure again.
-4. Pick a **Look** and a **Tone profile**, then fine-tune with the sliders or with the normal develop
+4. Pick a **Film stock / look** and a **Tone profile**, then fine-tune with the sliders or with the normal develop
    sliders, which act on the converted positive.
-5. **A whole roll:** set up one frame (Measure, Look, sliders), then Copy and Paste (or Sync) its
+5. **A whole roll:** set up one frame (Measure, stock, sliders), then Copy and Paste (or Sync) its
    settings to the other frames. The filter, its settings *and its measurement* go along, so the roll
    converts consistently, like a lab's roll analysis. A frame that needs its own colour can be
    measured on its own afterwards (select it, Measure).
@@ -80,7 +80,7 @@ To change ChromaNeg, see [DEVELOPING.md](DEVELOPING.md): where things are, the r
 
 | Group | Parameters |
 |---|---|
-| Convert | Type (Color Negative, B&W Negative, Positive), Method (Shared range, Per channel), Look, Film stock, Pre-saturation 1–5, Border buffer %, Show border buffer |
+| Convert | Type (Color Negative, B&W Negative, Positive), Method (Shared range, Per channel), Film stock / look, Pre-saturation 1–5, Border buffer %, Show border buffer |
 | Tone | Tone profile, Exposure, Brightness, Contrast, Lights, Darks, Whites, Blacks, Glow, Fade, Soft highs, Soft lows, Auto exposure, White clip, Black clip |
 | Colour | WB (Auto-Neutral, Auto-Color, Auto-Warm, Auto-Cool, None), Temp, Tint |
 
@@ -112,7 +112,7 @@ removes the film base.
 overall cast, so a stock corrects what it can't: dye cross-talk (stronger for films without an
 orange mask), contrast and the shadow toe, casts that differ between shadows and highlights, and
 saturation by hue. *Generic* is the former "Basic" colour model and *None (as scanned)* the former "None".
-Stocks are corrections; Looks are creative, and the two combine. Measure already maps each frame's
+Stocks are corrections; the creative looks at the end of the menu are bolder (below). Measure already maps each frame's
 own black and white, so stocks barely touch contrast: a "contrasty" or "flat" stock is mostly
 corrected by the measurement (v0.4's larger contrast values double-corrected, washing Phoenix out).
 
@@ -166,23 +166,22 @@ your own scans. Sources:
 - Lomography: [Color 400](https://parallaxphotographic.coop/lomography-color-negative-400-film-review/),
   [Color 800](https://www.analog.cafe/r/lomography-color-negative-800-film-review-y45b).
 
-**Looks** are offsets layered on the sliders, so every slider still starts at 0. Each is an own design:
+**Creative looks** sit at the end of the same menu, as "Creative: …". They're own designs, bolder
+than the stock corrections, and layered on the sliders, so every slider still starts at 0:
 
-| Look | Aims for |
+| Creative look | Aims for |
 |---|---|
-| Standard | balanced, a touch of density |
-| Neutral | as measured: no cross-talk correction, slightly muted |
-| Rich | deeper colour and contrast |
-| Clean Contrast, Clean Contrast + | clean whites and firm blacks, then more so |
 | Golden Hour | consumer gold film: warm, yellow highlights, saturated |
 | Portrait Warm | professional portrait film: low contrast, warm skin, gentle colour |
 | Portrait Airy | the bright, lifted, pastel version |
-| Fashion Cool | high-key fashion: cool, clean, contrasty |
 | Crisp Scan | lab scanner, crisp: cyan-leaning blues, firm greens |
-| Green Shadows | lab scanner, mellow: green-tinted shadows, warm highlights |
-| Vivid Green | consumer film with lively greens and cool shadows |
 | Night Cine | tungsten cine stock in daylight: teal shadows, warm highlights |
 | Archive Print | optical print on archival paper: deep blacks, rich reds, warm |
+
+Before 0.11 these were a separate Look menu. An edit that used one shows without it after the
+update (the app passes a plug-in only the settings its manifest still lists): pick the same
+"Creative: …" entry again, which renders exactly as the look did. Neutral, Rich, Clean Contrast,
+Fashion Cool, Green Shadows and Vivid Green are gone.
 
 **Tone profiles** turn the normalised value `t` into light. *Standard* was fitted to reference
 conversions (Negative Lab Pro, its standard settings): linear light ≈ `t`^1.68 with Per channel
@@ -210,7 +209,7 @@ densities; Shared range from fitting reference conversions (below). Details are 
    every channel. White / Black clip move these along 0, 0.1, 0.25, 0.5, 1, 1.5, 2, 3, 5, 8, 12 %.
 4. **Balance:** half of the remaining difference between the channels' averages is removed (a
    frame's overall cast), the rest kept (a sunset stays warm).
-5. The normalised value goes through the look and the tone profile, then into light.
+5. The normalised value goes through the stock and the tone profile, then into light.
 
 **Per channel** (0.9 and earlier; also slides and B&W), in density (`−log10` of the linear sample):
 1. **Base:** the film base (orange mask plus fog) is removed as a per-channel density offset.
@@ -221,7 +220,7 @@ densities; Shared range from fitting reference conversions (below). Details are 
    neutral. White comes from the brightness histogram, shared by the channels. The brightest 5 % of
    the frame is then neutralised when it's nearly neutral already (a white wall), and left alone when
    it's clearly coloured, with a fade between. At 0, white is at 5 % and black at 3 %.
-4. The normalised value goes through the look and the tone profile, then into light.
+4. The normalised value goes through the stock and the tone profile, then into light.
 
 **Checked against references.** Twelve frames also converted with Negative Lab Pro (its standard
 settings), each cropped to the picture and measured with a 3 % border buffer; the mean difference in
@@ -277,7 +276,7 @@ pixels, with each density computed once.
 - a synthetic orange-masked grey ramp comes out neutral and monotonic in each balance mode;
 - a small saturated patch doesn't tint the neutrals;
 - sprocket holes in the measured area are ignored, and the border preview hides once measured;
-- every look × profile renders finite values;
+- every stock × profile renders finite values, and a film stock stays gentle;
 - the lookup tables match the exact functions;
 - analysis JSON round-trips, and the manifest's menus match the code;
 - hostile input never panics.
