@@ -55,10 +55,17 @@ pub fn reply(v: Vec<u8>) -> i64 {
 
 /// `pc_alloc`: a zeroed block of `len` bytes for the host to write into (0 on a bad length).
 pub fn alloc(len: i32) -> i32 {
+    alloc_reserving(len, SCRATCH_BYTES)
+}
+
+/// [`alloc`] that reserves `scratch` bytes of working memory with the pixel block (a block of at
+/// least [`CHUNK_PX`] bytes), for a filter whose call allocates more than [`SCRATCH_BYTES`] (one
+/// that works on the whole band: [`filter_band`]).
+pub fn alloc_reserving(len: i32, scratch: usize) -> i32 {
     let Ok(n) = usize::try_from(len) else { return 0 };
     if n >= CHUNK_PX {
         // the pixel block: reserve working memory too (freed at once, kept by the allocator)
-        drop(Vec::<u8>::with_capacity(SCRATCH_BYTES));
+        drop(Vec::<u8>::with_capacity(scratch));
     }
     let v = vec![0u8; n.max(1)];
     // keyed by the address as the host sees it (32 bits: all of it in wasm32), so the same lookup
@@ -131,6 +138,35 @@ pub fn filter<F: FnMut(&mut [f32], usize)>(
     if done.is_some() { OK } else { BAD_ARGS }
 }
 
+/// `pc_filter` for a filter that needs the whole band at once (one with an `overlap`): `work` gets
+/// the parameters and the band as interleaved RGB `f32` with its width and height, converted in place.
+#[allow(clippy::too_many_arguments)]
+pub fn filter_band(
+    buf: i32,
+    len: i32,
+    w: i32,
+    h: i32,
+    channels: i32,
+    format: i32,
+    params: i32,
+    params_len: i32,
+    work: impl FnOnce(&Value, &mut [f32], usize, usize),
+) -> i32 {
+    let Some((w, h)) = rgb_args(len, w, h, channels, format) else { return BAD_ARGS };
+    let json = read_params(params, params_len);
+    let done = with_block(buf, len, |bytes| {
+        let n = w * h * 3;
+        let Some(region) = bytes.get_mut(..n * 4) else { return false };
+        let mut px: Vec<f32> = region.as_chunks::<4>().0.iter().map(|c| f32::from_le_bytes(*c)).collect();
+        work(&json, &mut px, w, h);
+        for (d, v) in region.as_chunks_mut::<4>().0.iter_mut().zip(px.iter()) {
+            *d = v.to_le_bytes();
+        }
+        true
+    });
+    if done == Some(true) { OK } else { BAD_ARGS }
+}
+
 /// `pc_analyze` on interleaved RGB `f32`: `measure` gets the parameters, the image size and a
 /// reader of pixel `i` (`y · w + x`, read in place), and returns the analysis (or `None`).
 #[allow(clippy::too_many_arguments)]
@@ -170,6 +206,7 @@ mod tests {
         assert_eq!(analyze(12345, 12, 1, 1, 3, 32, 0, 0, |_, _, _, _| Some(Value::Null)), 0);
         assert_eq!(read_params(-1, 5), Value::Null);
         assert_eq!(alloc(-1), 0);
+        assert_eq!(filter_band(12345, 12, 1, 1, 3, 32, 0, 0, |_, _, _, _| {}), BAD_ARGS);
     }
 
     #[test]
@@ -196,5 +233,13 @@ mod tests {
             Some(Value::from((0..w * h).filter_map(px).map(|p| f64::from(p[1])).sum::<f64>() / (w * h) as f64))
         });
         assert_ne!(mean, 0);
+        // the whole band at once, in place
+        let r = filter_band(buf, (n * 12) as i32, w as i32, h as i32, 3, 32, 0, 0, |_, px, bw, bh| {
+            assert_eq!((bw, bh, px.len()), (w, h, n * 3));
+            px.iter_mut().for_each(|v| *v *= 2.0);
+        });
+        assert_eq!(r, OK);
+        let doubled = analyze(buf, (n * 12) as i32, w as i32, h as i32, 3, 32, 0, 0, |_, _, _, px| px(n - 1).map(|p| Value::from(f64::from(p[0]))));
+        assert_ne!(doubled, 0);
     }
 }

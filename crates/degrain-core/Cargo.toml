@@ -1,0 +1,11 @@
+[package]
+name = "degrain-core"
+description = "Film grain reduction for scans: an à trous wavelet shrinkage, independent of the plug-in ABI"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+license = "MIT"
+publish = false
+
+[dependencies]
+serde_json = "1"

@@ -1,0 +1,17 @@
+[package]
+name = "degrain"
+description = "Film grain reduction for Chromaforge: a WebAssembly pixel-filter plug-in"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+license = "MIT"
+repository = "https://github.com/nwh212/ChromaNeg-Plugin"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+degrain-core = { path = "../../crates/degrain-core" }
+pixel-filter = { path = "../../crates/pixel-filter" }
+serde_json = "1"
