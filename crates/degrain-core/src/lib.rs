@@ -50,19 +50,21 @@ impl Params {
     pub fn from_json(v: &Value) -> Params {
         let num = |k: &str, d: f64| (v.get(k).and_then(Value::as_f64).filter(|f| f.is_finite()).unwrap_or(d) as f32 / 100.0).clamp(0.0, 1.0);
         Params {
-            fine: num("fine", 50.0),
-            medium: num("medium", 30.0),
-            coarse: num("coarse", 10.0),
-            color: num("colorGrain", 60.0),
-            keep: num("keepTexture", 15.0),
+            fine: num("fine", 35.0),
+            medium: num("medium", 20.0),
+            coarse: num("coarse", 35.0),
+            color: num("colorGrain", 40.0),
+            keep: num("keepTexture", 0.0),
         }
     }
 
     /// The grain level `T` per detail layer (finest first) for brightness, and per layer of the
     /// half-size colour planes (2 px, 4 px), in the `√` scale. 100 removes grain of about
-    /// 4 % of the range at that size.
+    /// 6 % of the range at that size. Picked by A/B comparisons on scans: the defaults suit a
+    /// fine-grained 400 stock (Fuji 400); a very grainy one (Harman Phoenix 200) wanted about
+    /// 90 / 70 / 100, with colour 40 and no texture returned.
     fn thresholds(&self) -> ([f32; LEVELS], [f32; CHROMA_LEVELS]) {
-        const FULL: f32 = 0.04;
+        const FULL: f32 = 0.06;
         let c = FULL * 1.5 * self.color;
         ([self.fine, self.medium, self.coarse].map(|a| a * FULL), [c, 0.6 * c])
     }
@@ -274,7 +276,7 @@ mod tests {
         let (w, h) = (160, 96);
         let (clean, grainy) = scene(w, h, 0.03);
         let mut out = grainy.clone();
-        degrain(&mut out, w, h, &Params::from_json(&json!({"fine": 80, "medium": 60, "coarse": 28, "colorGrain": 80, "keepTexture": 0})));
+        degrain(&mut out, w, h, &Params::from_json(&json!({"fine": 53, "medium": 40, "coarse": 19, "colorGrain": 53, "keepTexture": 0})));
         let flat = |img: &[f32]| rms_in(img, &clean, w, 10..70, 10..86);
         assert!(flat(&out) < 0.5 * flat(&grainy), "flat grain {} -> {}", flat(&grainy), flat(&out));
         // the step stays a step: the columns next to it keep most of its height

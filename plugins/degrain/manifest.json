@@ -5,13 +5,13 @@
   "kind": "filter",
   "stage": "source",
   "overlap": "@overlap",
-  "description": "Reduces film grain in scans. Add it after ChromaNeg (or another conversion), then raise Fine, Medium and Coarse grain until the grain in smooth areas (sky, skin) is as quiet as you like: each cleans one size of grain. Colour grain is cleaned harder; Keep texture returns some of what was removed.",
+  "description": "Reduces film grain in scans. Add it after ChromaNeg (or another conversion), then raise Fine, Medium and Coarse grain until the grain in smooth areas (sky, skin) is as quiet as you like: each cleans one size of grain. The defaults suit a fine-grained 400 film; very grainy film (Harman Phoenix) looks best near 90 / 70 / 100. Colour grain is cleaned harder; Keep texture returns some of what was removed.",
   "author": "nwh212",
   "params": {
-    "fine":        {"type": "number", "label": "Fine grain", "min": 0, "max": 100, "default": 50},
-    "medium":      {"type": "number", "label": "Medium grain", "min": 0, "max": 100, "default": 30},
-    "coarse":      {"type": "number", "label": "Coarse grain", "min": 0, "max": 100, "default": 10},
-    "colorGrain":  {"type": "number", "label": "Colour grain", "min": 0, "max": 100, "default": 60},
-    "keepTexture": {"type": "number", "label": "Keep texture", "min": 0, "max": 100, "default": 15}
+    "fine":        {"type": "number", "label": "Fine grain", "min": 0, "max": 100, "default": 35},
+    "medium":      {"type": "number", "label": "Medium grain", "min": 0, "max": 100, "default": 20},
+    "coarse":      {"type": "number", "label": "Coarse grain", "min": 0, "max": 100, "default": 35},
+    "colorGrain":  {"type": "number", "label": "Colour grain", "min": 0, "max": 100, "default": 40},
+    "keepTexture": {"type": "number", "label": "Keep texture", "min": 0, "max": 100, "default": 0}
   }
 }
