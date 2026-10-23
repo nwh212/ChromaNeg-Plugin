@@ -498,6 +498,67 @@ const EDGE_BAND: (f64, f64) = (0.10, 0.80);
 /// host's instruction budget whatever size it is handed.
 const MAX_SAMPLES: usize = 300_000;
 
+/// Bare light is at least this share of the measured pixels (holes are areas, not specks)…
+const BARE_LIGHT_MIN_SHARE: f64 = 0.005;
+/// …at most this share…
+const BARE_LIGHT_MAX_SHARE: f64 = 0.10;
+/// …and a density bin between it and the film counts as empty below this share (the soft edges of
+/// the holes leave a thin trail), judged over windows of this much density.
+const BARE_LIGHT_EMPTY_BIN: f64 = 2e-5;
+const BARE_LIGHT_WINDOW: f32 = 0.02;
+/// …and lies this far (in density) below the film in some channel, with almost nothing between.
+const BARE_LIGHT_GAP: f32 = 0.12;
+
+/// The density below which a channel's samples are bare light rather than film: the middle of an empty
+/// gap of at least [`BARE_LIGHT_GAP`] above a thin cluster of [`BARE_LIGHT_MIN_SHARE`] to
+/// [`BARE_LIGHT_MAX_SHARE`] of the samples. `None`
+/// when the thin end runs continuously into the film (no sprocket holes in view, or no gap).
+fn bare_light_floor(h: &Hist) -> Option<f32> {
+    // judged over windows of BARE_LIGHT_WINDOW of density, not single bins: quantised input (an
+    // 8-bit file) puts the thin trail between holes and film in a few spiky bins
+    let total = h.count as f64;
+    let win = ((BARE_LIGHT_WINDOW / (D_MAX - D_MIN) * BINS as f32).round() as usize).max(1);
+    let empty = (total * BARE_LIGHT_EMPTY_BIN * win as f64).max(1.0);
+    let gap_windows = (BARE_LIGHT_GAP / BARE_LIGHT_WINDOW).ceil() as usize;
+    let (mut seen, mut empty_run) = (0f64, 0usize);
+    for (k, w) in h.bins.chunks(win).enumerate() {
+        let n: f64 = w.iter().map(|b| f64::from(*b)).sum();
+        if n <= empty {
+            empty_run += 1;
+        } else {
+            if seen >= BARE_LIGHT_MIN_SHARE * total && empty_run >= gap_windows {
+                // the middle of the gap: clear of both the light and the film's thinnest samples
+                return Some(bin_density((k - empty_run / 2) * win));
+            }
+            empty_run = 0;
+        }
+        seen += n;
+        if seen > BARE_LIGHT_MAX_SHARE * total {
+            return None;
+        }
+    }
+    None
+}
+
+/// Marks samples of bare light (see [`bare_light_floor`], in any channel) as not measured.
+fn exclude_bare_light(grid: &mut [[f32; 3]]) {
+    let mut hists: Vec<Hist> = (0..3).map(|_| Hist::new()).collect();
+    for d in grid.iter().filter(|d| d[0].is_finite()) {
+        for (h, v) in hists.iter_mut().zip(d) {
+            h.add(*v);
+        }
+    }
+    let floors: Vec<Option<f32>> = hists.iter().map(bare_light_floor).collect();
+    if floors.iter().all(Option::is_none) {
+        return;
+    }
+    for d in grid.iter_mut() {
+        if d.iter().zip(&floors).any(|(v, f)| f.is_some_and(|f| *v < f)) {
+            *d = [f32::NAN; 3];
+        }
+    }
+}
+
 /// Measures `px` (interleaved linear RGB, `w × h`, the whole uncropped photo) inside the border buffer.
 pub fn analyze(px: &[f32], w: usize, h: usize, p: &Params) -> Analysis {
     analyze_with(|i| px.get(i * 3..i * 3 + 3).map(|c| [c[0], c[1], c[2]]), w, h, p)
@@ -520,6 +581,9 @@ pub fn analyze_with(pixel: impl Fn(usize) -> Option<[f32; 3]>, w: usize, h: usiz
             grid.push(d.unwrap_or([f32::NAN; 3]));
         }
     }
+    // bare light (sprocket holes, gaps in the film holder) inside the measured area would set the
+    // black point far below the film: drop it before measuring
+    exclude_bare_light(&mut grid);
     // pass 1: per-channel and mean-density histograms
     let mut hists: Vec<Hist> = (0..4).map(|_| Hist::new()).collect();
     let cell = |gx: usize, gy: usize| grid.get(gy * gw + gx).copied().filter(|d| d[0].is_finite());
@@ -1191,6 +1255,27 @@ mod tests {
         let mut px = vec![0.5f32; 30];
         o.apply(&mut px, 0);
         assert!(px.iter().all(|v| v.is_finite()));
+    }
+
+    #[test]
+    fn sprocket_holes_in_the_measured_area_are_ignored() {
+        // the grey negative, then the same film with rows of bare light (transmission 1) added below
+        let (w, h) = (200, 100);
+        let clean = negative(w, h);
+        let mut holes = clean.clone();
+        holes.extend(std::iter::repeat_n(1.0f32, w * 6 * 3));
+        let p = Params::from_json(&json!({"borderBuffer": 0}));
+        let (a, b) = (analyze(&clean, w, h, &p), analyze(&holes, w, h + 6, &p));
+        for c in 0..3 {
+            assert!((a.ge_lo[c][BLACK_I as usize] - b.ge_lo[c][BLACK_I as usize]).abs() < 0.01, "black {c}");
+            assert!((a.lo[c][BASE_I] - b.lo[c][BASE_I]).abs() < 0.01, "base {c}");
+            assert!((a.gain[c] - b.gain[c]).abs() < 0.05, "gain {c}");
+        }
+        // a frame whose thin end runs continuously into the film keeps everything
+        let ramp: Vec<f32> = (0..w * h).flat_map(|i| [10f32.powf(-(0.01 * (i % w) as f32)); 3]).collect();
+        let mut g: Vec<[f32; 3]> = ramp.as_chunks::<3>().0.iter().map(|c| [density(c[0]), density(c[1]), density(c[2])]).collect();
+        exclude_bare_light(&mut g);
+        assert!(g.iter().all(|d| d[0].is_finite()), "nothing excluded without a gap");
     }
 
     #[test]

@@ -4,6 +4,12 @@ Measurements made with one version can need **Measure** again in a later one; th
 "Reference error" is the mean difference from a Negative Lab Pro conversion of the same scan, in
 levels of 255 (see the README).
 
+## 0.9.1 (Measure again)
+- **Sprocket holes are ignored**: bare light inside the measured area (sprocket holes, gaps in the
+  film holder) no longer sets the black point. Before, holes in a narrow border buffer gave a
+  squashed, oversaturated, orange result. Reference error on a Fuji 400 frame at the default border
+  buffer: 28.6 → 22.3; the earlier references are unchanged.
+
 ## 0.9.0 (Measure again)
 - **Measures inside your crop**: the border buffer now applies after cropping, in apps that support
   `"analyzeArea": "crop"` (see the README); others still measure the whole photo.

@@ -27,7 +27,7 @@ use serde_json::Value;
 pub const MANIFEST: &str = r#"{
   "id": "io.github.nwh212.chromaneg",
   "name": "ChromaNeg",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "kind": "filter",
   "stage": "source",
   "analyzeArea": "crop",
