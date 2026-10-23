@@ -1,0 +1,17 @@
+[package]
+name = "chromaneg"
+description = "Film negative conversion for Chromaforge: a WebAssembly pixel-filter plug-in"
+version = "0.10.0"
+edition = "2024"
+rust-version = "1.88"
+license = "MIT"
+repository = "https://github.com/nwh212/ChromaNeg-Plugin"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+chromaneg-core = { path = "../../crates/chromaneg-core" }
+pixel-filter = { path = "../../crates/pixel-filter" }
+serde_json = "1"

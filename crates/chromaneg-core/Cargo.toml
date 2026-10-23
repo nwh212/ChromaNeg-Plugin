@@ -1,0 +1,11 @@
+[package]
+name = "chromaneg-core"
+description = "ChromaNeg's film negative conversion, independent of the plug-in ABI"
+version = "0.10.0"
+edition = "2024"
+rust-version = "1.88"
+license = "MIT"
+publish = false
+
+[dependencies]
+serde_json = "1"

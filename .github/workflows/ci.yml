@@ -21,9 +21,9 @@ jobs:
           targets: wasm32-unknown-unknown
           components: rustfmt, clippy
       - run: cargo fmt --check
-      - run: cargo clippy --release --all-targets -- -D warnings
-      - run: cargo test --release
-      - run: cargo build --release --target wasm32-unknown-unknown
+      - run: cargo clippy --release --workspace --all-targets -- -D warnings
+      - run: cargo test --release --workspace
+      - run: cargo build --release --target wasm32-unknown-unknown -p chromaneg
       - uses: actions/upload-artifact@v4
         with:
           name: chromaneg-wasm
@@ -45,9 +45,9 @@ jobs:
           targets: wasm32-unknown-unknown
       - name: Check the tag matches Cargo.toml
         run: |
-          v=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
-          test "v$v" = "$TAG" || { echo "release tag $TAG but Cargo.toml says $v"; exit 1; }
-      - run: cargo build --release --target wasm32-unknown-unknown
+          v=$(grep -m1 '^version' plugins/chromaneg/Cargo.toml | cut -d'"' -f2)
+          test "v$v" = "$TAG" || { echo "release tag $TAG but plugins/chromaneg/Cargo.toml says $v"; exit 1; }
+      - run: cargo build --release --target wasm32-unknown-unknown -p chromaneg
       - name: Attach the plug-in (and the changelog's notes when the release has none)
         run: |
           cp target/wasm32-unknown-unknown/release/chromaneg.wasm "chromaneg-$TAG.wasm"

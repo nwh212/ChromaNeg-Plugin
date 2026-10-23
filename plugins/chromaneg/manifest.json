@@ -1,0 +1,41 @@
+{
+  "id": "io.github.nwh212.chromaneg",
+  "name": "ChromaNeg",
+  "version": "@version",
+  "kind": "filter",
+  "stage": "source",
+  "analyzeArea": "crop",
+  "baseTone": "neutral",
+  "description": "Converts film negatives and slides. Add it to a photo, set Type and Border buffer, then press Measure. Measure again after changing Border buffer.",
+  "author": "",
+  "overlap": 0,
+  "params": {
+    "filmType":     {"type": "choice", "label": "Type", "options": ["Color Negative", "B&W Negative", "Positive (Slide)"], "default": "Color Negative"},
+    "method":       {"type": "choice", "label": "Method", "options": ["Shared range", "Per channel"], "default": "Shared range"},
+    "look":         {"type": "choice", "label": "Look", "options": "@looks", "default": "Standard"},
+    "stock":        {"type": "choice", "label": "Film stock", "options": "@stocks", "default": "Generic"},
+    "preSaturation":{"type": "int",    "label": "Pre-saturation", "min": 1, "max": 5, "default": 3},
+    "borderBuffer": {"type": "number", "label": "Border buffer %", "min": 0, "max": 25, "default": 10},
+    "showBorder":   {"type": "bool",   "label": "Show border buffer (until Measure)", "default": false},
+
+    "toneProfile":  {"type": "choice", "label": "Tone profile", "options": "@profiles", "default": "Standard"},
+    "exposure":     {"type": "number", "label": "Exposure",   "min": -5,  "max": 5,   "default": 0},
+    "brightness":   {"type": "number", "label": "Brightness", "min": -50, "max": 50,  "default": 0},
+    "contrast":     {"type": "number", "label": "Contrast",   "min": -50, "max": 50,  "default": 0},
+    "lights":       {"type": "number", "label": "Lights",     "min": -50, "max": 50,  "default": 0},
+    "darks":        {"type": "number", "label": "Darks",      "min": -50, "max": 50,  "default": 0},
+    "whites":       {"type": "number", "label": "Whites",     "min": -50, "max": 50,  "default": 0},
+    "blacks":       {"type": "number", "label": "Blacks",     "min": -50, "max": 50,  "default": 0},
+    "glow":         {"type": "number", "label": "Glow",       "min": -50, "max": 50,  "default": 0},
+    "fade":         {"type": "number", "label": "Fade",       "min": -50, "max": 50,  "default": 0},
+    "softHighs":    {"type": "bool",   "label": "Soft highs", "default": false},
+    "softLows":     {"type": "bool",   "label": "Soft lows",  "default": false},
+    "autoExposure": {"type": "bool",   "label": "Auto exposure", "default": false},
+    "whiteClip":    {"type": "int",    "label": "White clip", "min": -2, "max": 4, "default": 0},
+    "blackClip":    {"type": "int",    "label": "Black clip", "min": -2, "max": 4, "default": 0},
+
+    "wbMode":       {"type": "choice", "label": "WB", "options": ["Auto-Neutral", "Auto-Color", "Auto-Warm", "Auto-Cool", "None"], "default": "Auto-Neutral"},
+    "temp":         {"type": "number", "label": "Temp", "min": -50, "max": 50, "default": 0},
+    "tint":         {"type": "number", "label": "Tint", "min": -50, "max": 50, "default": 0}
+  }
+}

@@ -36,11 +36,21 @@ the app's `docs/plugins.md` ▸ *Pixel filters*), runs in its sandbox and asks f
 
 ```sh
 rustup target add wasm32-unknown-unknown
-cargo build --release --target wasm32-unknown-unknown
-# → target/wasm32-unknown-unknown/release/chromaneg.wasm (≈160 KB, no imports)
+cargo build --release --target wasm32-unknown-unknown -p chromaneg
+# → target/wasm32-unknown-unknown/release/chromaneg.wasm (≈170 KB, no imports)
 ```
 
-Rust 1.88 or newer. `cargo test` runs the conversion natively (see *Test* below).
+Rust 1.88 or newer. `cargo test --workspace` runs everything natively (see *Test* below).
+
+**Layout** (a Cargo workspace):
+
+| Path | What |
+|---|---|
+| `crates/chromaneg-core` | the conversion, independent of the plug-in ABI: `params` (what the host sends), `presets` (profiles, looks, stocks), `analysis` (Measure), `plan` (how each sample becomes light), `convert`, `overlay` (border buffer preview) |
+| `crates/pixel-filter` | the plug-in plumbing any pixel filter needs (memory blocks, parameters, chunked conversion, the ABI checks), so a new plug-in is only its manifest and its maths |
+| `plugins/chromaneg` | the plug-in: `manifest.json` (dialog order; the version and the menus are filled in from the code) and the ABI exports |
+
+The version lives in `plugins/chromaneg/Cargo.toml` only; the manifest takes it from there.
 
 ## Use
 
@@ -258,7 +268,7 @@ pixels, with each density computed once.
 
 ## Test
 
-`cargo test` runs the maths natively:
+`cargo test --workspace` runs the maths and the plumbing natively:
 - a synthetic orange-masked grey ramp comes out neutral and monotonic in each balance mode;
 - a small saturated patch doesn't tint the neutrals;
 - sprocket holes in the measured area are ignored, and the border preview hides once measured;
@@ -267,5 +277,6 @@ pixels, with each density computed once.
 - analysis JSON round-trips, and the manifest's menus match the code;
 - hostile input never panics.
 
-`cargo run --release --example develop -- in.f32 w h '{"borderBuffer":20}' out.f32` runs Measure and
-a conversion on a raw linear `f32` image, for tuning by eye.
+`cargo run --release -p chromaneg-core --example develop -- in.f32 w h '{"borderBuffer":20}' out.f32`
+runs Measure and a conversion on a raw linear `f32` image, for tuning by eye;
+`cargo run -p chromaneg --example manifest` prints the manifest the app reads.
