@@ -1,9 +1,12 @@
 [package]
 name = "chromaneg"
-description = "Pixel filter: film negative / slide conversion with a whole-image measurement (Analyze) step"
+description = "Film negative conversion for Chromaforge: a WebAssembly pixel-filter plug-in"
 version = "0.8.0"
 edition = "2024"
+rust-version = "1.88"
 license = "MIT"
+repository = "https://github.com/nwh212/ChromaNeg-Plugin"
+readme = "README.md"
 publish = false
 
 [workspace]

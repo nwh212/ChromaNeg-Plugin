@@ -1,20 +1,36 @@
-# ChromaNeg: film negative conversion filter
+# ChromaNeg
 
-A pixel-filter plug-in (PhotoCraft ABI v1 + the `pc_analyze` v1.1 proposal; see `docs/plugins.md`
-▸ *Pixel filters*) that turns camera or scanner captures of film into positives. It follows the
-usual two-step negative-conversion workflow: **analyze** the frame once, then every render
-**converts** with that measurement.
+Film negative conversion for [Chromaforge](https://github.com/emmertex/lightcraft-classic) ("the app"
+below), the open-source raw developer. ChromaNeg is a WebAssembly pixel-filter plug-in that turns camera
+or scanner captures of colour negatives, black-and-white negatives and slides into positives, in the
+spirit of the two-step negative-conversion tools: **measure** the frame once, then every render
+**converts** with that measurement. It adds film-stock corrections, looks, tone profiles, and Glow / Fade.
 
-## Build and install
+It uses the app's pixel-filter ABI (PhotoCraft plug-in ABI v1 with the `pc_analyze` v1.1 proposal; see
+the app's `docs/plugins.md` ▸ *Pixel filters*), runs in its sandbox and asks for no permissions.
+
+## Download and install
+
+1. Download `chromaneg-<version>.wasm` from [Releases](../../releases).
+2. In the app: File ▸ Plug-ins ▸ Plug-in Manager… ▸ Install…, and pick the file
+   (or `lightcraft-classic-cli commands plugin.install '{"path": "…/chromaneg-<version>.wasm"}'`).
+3. Installing a newer version replaces the old one (same plug-in id); press **Measure** again on photos
+   measured with an older version when its notes say the measurement format changed.
+
+**Compatibility:** Chromaforge v26.43 or newer with pixel-filter plug-ins. In v26.43.4, clicking the
+Develop ▸ *Plug-in Filters* section header shows "section.pluginFilters: no such Edit section" and the
+section won't open; that's an app bug, fixed on the `fix-plugin-filters-section` branch of
+[nwh212/chromaforge-plugins](https://github.com/nwh212/chromaforge-plugins/tree/fix-plugin-filters-section).
+
+## Build from source
 
 ```sh
 rustup target add wasm32-unknown-unknown
 cargo build --release --target wasm32-unknown-unknown
-# → target/wasm32-unknown-unknown/release/chromaneg.wasm (≈110 KB, no imports)
+# → target/wasm32-unknown-unknown/release/chromaneg.wasm (≈160 KB, no imports)
 ```
 
-Install it from File ▸ Plug-ins ▸ Plug-in Manager… (or `<cli> commands plugin.install '{"path": "…/chromaneg.wasm"}'`).
-Filters need no permissions.
+Rust 1.88 or newer. `cargo test` runs the conversion natively (see *Test* below).
 
 ## Use
 
