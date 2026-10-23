@@ -21,18 +21,19 @@
 use serde_json::{Value, json};
 
 /// Percentiles (in %) stored by the analysis for each end of each histogram.
-pub const PERCENTILES: [f64; NP] = [0.0, 0.1, 0.25, 0.5, 1.0, 1.5, 2.0, 3.0, 5.0];
+pub const PERCENTILES: [f64; NP] = [0.0, 0.1, 0.25, 0.5, 1.0, 1.5, 2.0, 3.0, 5.0, 8.0, 12.0];
 /// How many percentiles are stored per histogram end.
-pub const NP: usize = 9;
+pub const NP: usize = 11;
 /// The film base: the 0.1 % thin end of each channel.
 const BASE_I: usize = 1;
-/// White and black clip 0 pick these percentiles (1.5 % and 1 %, fitted to a reference conversion);
-/// each clip step moves one entry along [`PERCENTILES`].
-const WHITE_I: i64 = 5;
-const BLACK_I: i64 = 4;
+/// White and black clip 0 pick these percentiles (5 % and 3 %, fitted to two reference conversions:
+/// a colour negative portrait and a Harman Phoenix landscape); each clip step moves one entry along
+/// [`PERCENTILES`].
+const WHITE_I: i64 = 8;
+const BLACK_I: i64 = 7;
 
 /// The analysis format; an older measurement is ignored (the photo is measured again).
-const ANALYSIS_VERSION: i64 = 5;
+const ANALYSIS_VERSION: i64 = 6;
 
 /// Density histogram range and resolution.
 const D_MIN: f32 = -0.5;
@@ -161,7 +162,8 @@ pub const LOOKS: [Look; 14] = [
 ];
 
 /// A film stock's gentle correction: what Auto-Neutral can't fix on its own (it already removes a
-/// frame's overall cast). Offsets are layered under the look and the sliders.
+/// frame's overall cast, and Measure already maps each frame's own black and white, so a stock's
+/// contrast and toe values stay small: a "contrasty" stock is mostly corrected by the measurement). Offsets are layered under the look and the sliders.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Stock {
     pub name: &'static str,
@@ -208,51 +210,51 @@ pub const STOCKS: [Stock; 24] = [
     // no correction at all (the former "None")
     stock("None (as scanned)", 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, NONE3, NONE3, FLAT),
     // Kodak Portra 160: flat, pastel, slightly desaturated by design; slight magenta-blue bias
-    stock("Kodak Portra 160", 1.0, 1.05, 4.0, 0.0, 0.0, -2.0, NONE3, [-0.003, 0.0, 0.003], [1.0, 1.03, 1.02, 1.0, 1.0, 1.0]),
+    stock("Kodak Portra 160", 1.0, 1.05, 1.4, 0.0, 0.0, -2.0, NONE3, [-0.003, 0.0, 0.003], [1.0, 1.03, 1.02, 1.0, 1.0, 1.0]),
     // Kodak Portra 400: natural, low saturation; slight magenta-blue bias
     stock("Kodak Portra 400", 1.0, 1.0, 0.0, 0.0, 0.0, -2.0, NONE3, NONE3, FLAT),
     // Kodak Portra 800: warmer, more saturated and contrasty than its siblings
-    stock("Kodak Portra 800", 1.0, 0.97, -4.0, 0.0, -2.0, 0.0, NONE3, [-0.004, 0.0, 0.004], FLAT),
+    stock("Kodak Portra 800", 1.0, 0.97, -1.4, 0.0, -2.0, 0.0, NONE3, [-0.004, 0.0, 0.004], FLAT),
     // Kodak Ektar 100: the most saturated C-41 stock, warm orange lean, reddish skin
-    stock("Kodak Ektar 100", 1.1, 0.93, -3.0, 0.0, -3.0, 0.0, NONE3, NONE3, [0.88, 0.94, 1.0, 1.0, 1.0, 0.96]),
+    stock("Kodak Ektar 100", 1.1, 0.93, -1.0, 0.0, -3.0, 0.0, NONE3, NONE3, [0.88, 0.94, 1.0, 1.0, 1.0, 0.96]),
     // Kodak Gold 200: warm, reds and yellows pushed, contrasty; weak on overcast days
-    stock("Kodak Gold 200", 1.0, 1.0, -4.0, 0.0, -4.0, 0.0, NONE3, NONE3, [0.92, 0.9, 1.02, 1.0, 1.0, 1.0]),
+    stock("Kodak Gold 200", 1.0, 1.0, -1.4, 0.0, -4.0, 0.0, NONE3, NONE3, [0.92, 0.9, 1.02, 1.0, 1.0, 1.0]),
     // Kodak UltraMax 400: saturated and a bit punchier than Portra, slightly cooler than Gold
-    stock("Kodak UltraMax 400", 1.0, 0.95, -3.0, 0.0, -1.0, 0.0, NONE3, NONE3, FLAT),
+    stock("Kodak UltraMax 400", 1.0, 0.95, -1.0, 0.0, -1.0, 0.0, NONE3, NONE3, FLAT),
     // Kodak ColorPlus 200: soft colour, moderate contrast, flat in dull light
-    stock("Kodak ColorPlus 200", 1.0, 1.06, 4.0, 0.0, 0.0, 0.0, NONE3, NONE3, FLAT),
+    stock("Kodak ColorPlus 200", 1.0, 1.06, 1.4, 0.0, 0.0, 0.0, NONE3, NONE3, FLAT),
     // Kodak Vision3 50D (ECN-2 cine stock): flat by design, meant to be graded
-    stock("Kodak Vision3 50D", 1.0, 1.04, 8.0, 0.0, 0.0, 0.0, NONE3, NONE3, FLAT),
+    stock("Kodak Vision3 50D", 1.0, 1.04, 2.8, 0.0, 0.0, 0.0, NONE3, NONE3, FLAT),
     // Kodak Vision3 250D: flat by design
-    stock("Kodak Vision3 250D", 1.0, 1.06, 10.0, 0.0, 0.0, 0.0, NONE3, NONE3, FLAT),
+    stock("Kodak Vision3 250D", 1.0, 1.06, 3.5, 0.0, 0.0, 0.0, NONE3, NONE3, FLAT),
     // Kodak Vision3 500T: flat, tungsten-balanced (Auto-Neutral removes the daylight blue)
-    stock("Kodak Vision3 500T", 1.0, 1.05, 10.0, 0.0, 0.0, 0.0, NONE3, NONE3, FLAT),
+    stock("Kodak Vision3 500T", 1.0, 1.05, 3.5, 0.0, 0.0, 0.0, NONE3, NONE3, FLAT),
     // CineStill 50D (Vision3 50D without remjet): fine grain, accurate; red halation
-    stock("CineStill 50D", 1.0, 1.03, 6.0, 0.0, 0.0, 0.0, NONE3, NONE3, FLAT),
+    stock("CineStill 50D", 1.0, 1.03, 2.1, 0.0, 0.0, 0.0, NONE3, NONE3, FLAT),
     // CineStill 400D: medium contrast, occasional mint-green cast
-    stock("CineStill 400D", 1.0, 1.04, 6.0, 0.0, 0.0, 4.0, [0.0, -0.004, 0.0], NONE3, FLAT),
+    stock("CineStill 400D", 1.0, 1.04, 2.1, 0.0, 0.0, 4.0, [0.0, -0.004, 0.0], NONE3, FLAT),
     // CineStill 800T (Vision3 500T without remjet): flat-ish, tungsten-balanced; red halation
-    stock("CineStill 800T", 1.0, 1.04, 8.0, 0.0, 0.0, 0.0, NONE3, NONE3, FLAT),
+    stock("CineStill 800T", 1.0, 1.04, 2.8, 0.0, 0.0, 0.0, NONE3, NONE3, FLAT),
     // Fujifilm Superia X-TRA 400: magenta casts reported in scans
     stock("Fujifilm Superia X-TRA 400", 1.0, 1.0, 0.0, 0.0, 0.0, -5.0, NONE3, NONE3, [1.0, 1.0, 1.04, 1.0, 1.0, 0.9]),
     // Fujicolor C200 (the classic Fuji emulsion): cool, green-leaning
     stock("Fujicolor C200", 1.0, 1.02, 0.0, 0.0, 2.0, 2.0, NONE3, NONE3, [1.0, 1.0, 0.97, 1.0, 1.0, 1.0]),
     // Fujifilm 200 (2022 on): its datasheet matches Kodak Gold 200's, so corrected like Gold
-    stock("Fujifilm 200", 1.0, 1.0, -3.0, 0.0, -3.0, 0.0, NONE3, NONE3, [0.93, 0.92, 1.02, 1.0, 1.0, 1.0]),
+    stock("Fujifilm 200", 1.0, 1.0, -1.0, 0.0, -3.0, 0.0, NONE3, NONE3, [0.93, 0.92, 1.02, 1.0, 1.0, 1.0]),
     // Fujifilm 400 (US, 2023 on): widely thought to be UltraMax-like; corrected like UltraMax
-    stock("Fujifilm 400", 1.0, 0.96, -3.0, 0.0, -1.0, 0.0, NONE3, NONE3, FLAT),
+    stock("Fujifilm 400", 1.0, 0.96, -1.0, 0.0, -1.0, 0.0, NONE3, NONE3, FLAT),
     // Fujifilm Pro 400H (discontinued, fourth colour layer): pastel, greenish-blue cast
     stock("Fujifilm Pro 400H", 1.0, 1.03, 0.0, 0.0, 2.0, 3.0, NONE3, NONE3, [1.0, 1.0, 0.96, 0.97, 1.0, 1.0]),
     // Harman Phoenix 200 (I): no orange mask, high contrast, shadows fall off fast; bold reds and
     // blues, weak yellows and skin; warm highlights over cold, greenish shadows
-    stock("Harman Phoenix 200", 1.8, 0.92, -14.0, 18.0, -6.0, 0.0, [0.006, -0.008, 0.002], [-0.006, 0.0, 0.006], [0.88, 1.15, 1.0, 0.95, 0.9, 1.0]),
+    stock("Harman Phoenix 200", 1.4, 1.0, 0.0, 0.0, -3.0, 0.0, [0.003, -0.004, 0.001], [-0.003, 0.0, 0.003], [0.92, 1.08, 1.0, 0.97, 0.94, 1.0]),
     // Harman Phoenix II: no orange mask; more normal contrast and colour than Phoenix I, cooler
     // blues and greens, shadows still fall off fast
-    stock("Harman Phoenix II", 1.6, 0.96, -8.0, 14.0, 4.0, 2.0, [0.004, -0.005, 0.0], NONE3, [0.95, 1.06, 0.97, 0.94, 0.95, 1.0]),
+    stock("Harman Phoenix II", 1.3, 1.0, 0.0, 0.0, 2.0, 1.0, [0.002, -0.003, 0.0], NONE3, [0.97, 1.03, 0.98, 0.97, 0.97, 1.0]),
     // Lomography Color Negative 400 (thought to be Kodak-made): balanced, slightly muted
     stock("Lomography 400", 1.0, 1.06, 0.0, 0.0, 0.0, 0.0, NONE3, NONE3, FLAT),
     // Lomography Color Negative 800: medium-high saturation, natural skin
-    stock("Lomography 800", 1.0, 0.98, -2.0, 0.0, 0.0, 0.0, NONE3, NONE3, FLAT),
+    stock("Lomography 800", 1.0, 0.98, -0.7, 0.0, 0.0, 0.0, NONE3, NONE3, FLAT),
 ];
 
 /// The resolved parameters (the host has clamped them to the manifest's ranges already).
@@ -991,19 +993,25 @@ mod tests {
     }
 
     #[test]
-    fn a_harman_stock_softens_contrast_and_lifts_the_shadows() {
+    fn every_stock_keeps_its_tone_changes_gentle() {
+        // Measure already maps each frame's black and white, so a stock must not re-shape the tone
+        // much: on a grey ramp every stock stays within a small distance of Generic
         let (w, h) = (200, 40);
         let render = |stock: &str| {
             let mut px = negative(w, h);
-            let p = measured(&px, w, h, json!({"stock": stock, "autoExposure": false}));
+            let p = measured(&px, w, h, json!({"stock": stock}));
             convert(&mut px, &p);
-            let at = |x: usize| px[((h / 2) * w + x) * 3 + 1];
-            (at(w / 5), at(w / 2))
+            px
         };
-        let (gen_dark, gen_mid) = render("Generic");
-        let (ph_dark, ph_mid) = render("Harman Phoenix 200");
-        assert!(ph_dark > gen_dark, "shadows should lift: {ph_dark} vs {gen_dark}");
-        assert!(ph_mid / ph_dark < gen_mid / gen_dark, "contrast should soften");
+        let generic = render("Generic");
+        for st in STOCKS {
+            let px = render(st.name);
+            let row = (h / 2) * w * 3;
+            for x in (w / 10..w - w / 10).step_by(10) {
+                let (a, b) = (generic[row + x * 3 + 1], px[row + x * 3 + 1]);
+                assert!((a - b).abs() < 0.06, "{}: green {b} vs Generic {a} at x={x}", st.name);
+            }
+        }
     }
 
     #[test]
@@ -1026,7 +1034,7 @@ mod tests {
         let base = [0.25f32, 0.55, 0.85];
         let dark: Vec<f32> = (0..w * h)
             .flat_map(|i| {
-                let e = if i % 50 == 0 { 3.0 } else { 0.3 + 0.2 * ((i % 7) as f32 / 7.0) };
+                let e = if i % 10 == 0 { 3.0 } else { 0.3 + 0.2 * ((i % 7) as f32 / 7.0) };
                 (0..3).map(move |c| 10f32.powf(-(base[c] + 0.65 * e)))
             })
             .collect();

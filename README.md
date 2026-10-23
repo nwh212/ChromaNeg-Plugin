@@ -53,7 +53,9 @@ stronger, but a large or very saturated object (blue sky, a red sign) can tilt t
 overall cast, so a stock corrects what it can't: dye cross-talk (stronger for films without an
 orange mask), contrast and the shadow toe, casts that differ between shadows and highlights, and
 saturation by hue. *Generic* is the former "Basic" colour model and *None (as scanned)* the former "None".
-Stocks are corrections; Looks are creative, and the two combine.
+Stocks are corrections; Looks are creative, and the two combine. Measure already maps each frame's
+own black and white, so stocks barely touch contrast: a "contrasty" or "flat" stock is mostly
+corrected by the measurement (v0.4's larger contrast values double-corrected, washing Phoenix out).
 
 | Stock | Reported tendency | Correction |
 |---|---|---|
@@ -72,8 +74,8 @@ Stocks are corrections; Looks are creative, and the two combine.
 | Fujifilm 200 (2022 on) | datasheet matches Kodak Gold 200 | corrected like Gold |
 | Fujifilm 400 (US, 2023 on) | widely thought to be UltraMax-like (unconfirmed) | corrected like UltraMax |
 | Fujifilm Pro 400H | fourth colour layer; pastel, greenish-blue cast | tint away from green, cooler greens and cyans |
-| Harman Phoenix 200 | **no orange mask**, limited antihalation; high contrast, shadows fall off fast; bold reds and blues, weak yellows and skin; warm highlights over cold greenish shadows | strong cross-talk correction, much softer contrast, lifted toe, less red/blue and more yellow, opposite split cast, cooler |
-| Harman Phoenix II | **no orange mask**; more normal contrast and colour than Phoenix I, cooler blues and greens, shadows still fall off fast | strong cross-talk correction, softer contrast, lifted toe, slightly warmer |
+| Harman Phoenix 200 | **no orange mask**, limited antihalation; high contrast, shadows fall off fast; bold reds and blues, weak yellows and skin; warm highlights over cold greenish shadows | stronger cross-talk correction, a little less red/blue and more yellow, a slight opposite split cast, cooler (its contrast is handled by Measure) |
+| Harman Phoenix II | **no orange mask**; more normal contrast and colour than Phoenix I, cooler blues and greens, shadows still fall off fast | stronger cross-talk correction, slightly warmer |
 | Lomography 400 / 800 | 400: balanced, slightly muted; 800: medium-high saturation | 400: a little more saturation; 800: slightly less |
 
 These are starting points from published descriptions, not measurements: the datasheets' curves
@@ -148,13 +150,20 @@ Details are in `src/convert.rs`. In short, everything works in density (`−log1
    neutral. White comes from the brightness histogram, shared by the channels, so no single channel
    or object sets it. The brightest 5 % of the frame is then neutralised when it's nearly neutral
    already (a white wall), and left alone when it's clearly coloured, with a fade between. White /
-   Black clip choose which stored percentile is the end: at 0, 1.5 % (white) and 1 % (black); each
-   step moves along 0, 0.1, 0.25, 0.5, 1, 1.5, 2, 3, 5 %.
+   Black clip choose which stored percentile is the end: at 0, 5 % (white) and 3 % (black); each
+   step moves along 0, 0.1, 0.25, 0.5, 1, 1.5, 2, 3, 5, 8, 12 %.
 4. The normalised value goes through the look and the tone profile, then into light.
 
-**Checked against a reference.** On a scan you also converted with Negative Lab Pro, the default settings
-come within 9.9 levels (of 255) of its result over the whole frame, measured on an 8-bit export of the
-negative (v0.4: 19.6, with a strong yellow-green cast).
+**Checked against references.** Two scans also converted with Negative Lab Pro, compared over the whole
+frame (mean difference in levels of 255, from 8-bit exports of the negatives):
+
+| Frame | v0.4 | v0.5 | v0.6 |
+|---|---|---|---|
+| Colour negative portrait, indoors | 19.6 | 9.9 | 8.9 |
+| Harman Phoenix 200 landscape, flatbed scan (Generic) | — | 14.7 (in the app) | 9.1 |
+| the same with the Phoenix 200 stock | — | 35.6 (in the app) | 9.3 |
+
+A third frame (street, daylight) has no reference; v0.6 renders it within a few levels of v0.5.
 
 Speed: the logarithm and the tone curve are lookup tables. In the app's interpreter, a
 2.7 MP render takes about 1–2 s (v0.1: 3.6 s), and Measure about 0.5 s: it reads at most 300 000
