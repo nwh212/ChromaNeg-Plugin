@@ -1,7 +1,7 @@
 [package]
 name = "chromaneg"
 description = "Pixel filter: film negative / slide conversion with a whole-image measurement (Analyze) step"
-version = "0.7.1"
+version = "0.8.0"
 edition = "2024"
 license = "MIT"
 publish = false

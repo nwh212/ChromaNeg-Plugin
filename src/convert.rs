@@ -275,6 +275,7 @@ pub struct Params {
     pub whites: f32,
     pub blacks: f32,
     pub fade: f32,
+    pub glow: f32,
     pub soft_highs: bool,
     pub soft_lows: bool,
     pub auto_exposure: bool,
@@ -318,6 +319,7 @@ impl Params {
             whites: num("whites", 0.0),
             blacks: num("blacks", 0.0),
             fade: num("fade", 0.0),
+            glow: num("glow", 0.0),
             soft_highs: flag("softHighs"),
             soft_lows: flag("softLows"),
             auto_exposure: flag("autoExposure"),
@@ -765,11 +767,18 @@ fn plan(p: &Params) -> Plan {
         params.soft_highs |= stops > 0.0;
     }
     let tone = Lut::new(-0.6, 1.6, 2200, move |t| tone(t, &params, contrast, &pr));
-    let fade = pr.lift + (p.fade + look.fade * 100.0) / 200.0;
+    // the profile's and the look's lift (in t); the Fade and Glow sliders act on the display values below
+    let fade = pr.lift + look.fade / 2.0;
+    let (fade_s, glow_s) = ((p.fade / 50.0).clamp(-1.0, 1.0), (p.glow / 50.0).clamp(-1.0, 1.0));
     let power = pr.power;
     let linear = Lut::new(0.0, T_MAX, 1300, move |t| {
         let t = fade + t.clamp(0.0, T_MAX) * (1.0 - fade);
-        shoulder(t.powf(power))
+        let l = shoulder(t.powf(power));
+        if fade_s == 0.0 && glow_s == 0.0 {
+            return l;
+        }
+        let v = display_curve(display_curve(srgb_encode(l), &FADE_CURVE, fade_s), &GLOW_CURVE, glow_s);
+        srgb_decode(v)
     });
     let shadows = [look.shadows[0] + st.shadows[0], look.shadows[1] + st.shadows[1], look.shadows[2] + st.shadows[2]];
     let highlights = [look.highlights[0] + st.highlights[0], look.highlights[1] + st.highlights[1], look.highlights[2] + st.highlights[2]];
@@ -791,6 +800,63 @@ fn hue_factor(t: &[f32; 3], hs: &[f32; 6]) -> f32 {
     let i = (f as usize).min(5);
     let (a, b) = (hs.get(i).copied().unwrap_or(1.0), hs.get((i + 1) % 6).copied().unwrap_or(1.0));
     a + (b - a) * (f - i as f32)
+}
+
+/// The Fade slider at +50: display value (sRGB-encoded) in → out. Fitted to a reference conversion's
+/// fade setting: blacks lift to about 0.2, the lower mids dip a little, highlights stay.
+const FADE_CURVE: [(f32, f32); 13] = [
+    (0.0, 0.196),
+    (0.05, 0.204),
+    (0.1, 0.208),
+    (0.2, 0.227),
+    (0.3, 0.263),
+    (0.4, 0.322),
+    (0.5, 0.392),
+    (0.6, 0.486),
+    (0.7, 0.627),
+    (0.8, 0.792),
+    (0.9, 0.91),
+    (0.95, 0.961),
+    (1.0, 0.98),
+];
+
+/// The Glow slider at +50: mids brighten, whites settle near 0.8 (fitted the same way).
+const GLOW_CURVE: [(f32, f32); 13] = [
+    (0.0, 0.0),
+    (0.05, 0.027),
+    (0.1, 0.078),
+    (0.2, 0.216),
+    (0.3, 0.345),
+    (0.4, 0.475),
+    (0.5, 0.584),
+    (0.6, 0.69),
+    (0.7, 0.761),
+    (0.8, 0.78),
+    (0.9, 0.788),
+    (0.95, 0.796),
+    (1.0, 0.796),
+];
+
+/// `curve` applied with strength `s` in −1..=1: `x + s·(curve(x) − x)`; a negative strength pushes
+/// the other way (Fade < 0 deepens the blacks, Glow < 0 darkens the mids and opens the highlights).
+fn display_curve(x: f32, curve: &[(f32, f32)], s: f32) -> f32 {
+    if s == 0.0 {
+        return x;
+    }
+    let x = x.clamp(0.0, 1.0);
+    let i = curve.iter().position(|(cx, _)| *cx >= x).unwrap_or(curve.len() - 1).max(1);
+    let ((x0, y0), (x1, y1)) = (curve.get(i - 1).copied().unwrap_or((0.0, 0.0)), curve.get(i).copied().unwrap_or((1.0, 1.0)));
+    let y = if x1 > x0 { y0 + (y1 - y0) * (x - x0) / (x1 - x0) } else { y1 };
+    (x + s * (y - x)).clamp(0.0, 1.0)
+}
+
+fn srgb_encode(l: f32) -> f32 {
+    let l = l.clamp(0.0, 1.0);
+    if l <= 0.003_130_8 { l * 12.92 } else { 1.055 * l.powf(1.0 / 2.4) - 0.055 }
+}
+
+fn srgb_decode(v: f32) -> f32 {
+    if v <= 0.040_45 { v / 12.92 } else { ((v + 0.055) / 1.055).powf(2.4) }
 }
 
 /// Headroom above white (`t` = 1) that the tone stage keeps for the highlight roll-off.
@@ -1037,6 +1103,25 @@ mod tests {
                 assert!((a - b).abs() < 0.06, "{}: green {b} vs Generic {a} at x={x}", st.name);
             }
         }
+    }
+
+    #[test]
+    fn fade_and_glow_are_monotonic_and_do_what_they_say() {
+        for s in [-1.0f32, -0.5, 0.0, 0.5, 1.0] {
+            for curve in [&FADE_CURVE[..], &GLOW_CURVE[..]] {
+                let mut last = -1.0;
+                for i in 0..=200 {
+                    let y = display_curve(i as f32 / 200.0, curve, s);
+                    assert!(y >= last - 1e-6, "not monotonic at strength {s}");
+                    last = y;
+                }
+            }
+        }
+        assert!(display_curve(0.0, &FADE_CURVE, 1.0) > 0.15, "fade lifts black");
+        assert!(display_curve(0.1, &FADE_CURVE, -1.0) < 0.1, "negative fade deepens the shadows");
+        assert!(display_curve(0.5, &GLOW_CURVE, 1.0) > 0.55 && display_curve(1.0, &GLOW_CURVE, 1.0) < 0.85, "glow: brighter mids, softer whites");
+        assert_eq!(display_curve(0.37, &GLOW_CURVE, 0.0), 0.37);
+        assert!((srgb_decode(srgb_encode(0.18)) - 0.18).abs() < 1e-5);
     }
 
     #[test]

@@ -38,8 +38,15 @@ Filters need no permissions.
 | Group | Parameters |
 |---|---|
 | Convert | Type (Color Negative, B&W Negative, Positive), Look, Film stock, Pre-saturation 1–5, Border buffer % |
-| Tone | Tone profile, Exposure, Brightness, Contrast, Lights, Darks, Whites, Blacks, Fade, Soft highs, Soft lows, Auto exposure, White clip, Black clip |
+| Tone | Tone profile, Exposure, Brightness, Contrast, Lights, Darks, Whites, Blacks, Glow, Fade, Soft highs, Soft lows, Auto exposure, White clip, Black clip |
 | Colour | WB (Auto-Neutral, Auto-Color, Auto-Warm, Auto-Cool, None), Temp, Tint |
+
+**Glow** and **Fade** (−50 to +50) are curves on the display values, fitted to a reference
+conversion's glow and fade settings (they reproduce them within about 4 levels of 255). *Glow* brightens
+the mids and settles the whites near 80 %, for a soft, luminous print; below 0 it darkens the mids and
+opens the highlights. *Fade* lifts the blacks to about 20 % and dips the lower mids, a matte print;
+below 0 it deepens the shadows. +50 matches the references as captured; the slider values used for
+them aren't known, so the scale may change.
 
 **Auto exposure** (off by default) lifts a dark frame's median brightness toward mid grey, by at most
 2 stops, never darker, and rolls the highlights off so a bright sky doesn't clip. It needs a measurement.
