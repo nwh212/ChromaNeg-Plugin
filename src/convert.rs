@@ -20,12 +20,19 @@
 
 use serde_json::{Value, json};
 
-/// Percentiles (in %) stored by the analysis for each end of each histogram. `whiteClip` /
-/// `blackClip` pick one: index = clip + 2, so 0 → 0.1 %.
-pub const PERCENTILES: [f64; 7] = [0.0, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0];
+/// Percentiles (in %) stored by the analysis for each end of each histogram.
+pub const PERCENTILES: [f64; NP] = [0.0, 0.1, 0.25, 0.5, 1.0, 1.5, 2.0, 3.0, 5.0];
+/// How many percentiles are stored per histogram end.
+pub const NP: usize = 9;
+/// The film base: the 0.1 % thin end of each channel.
+const BASE_I: usize = 1;
+/// White and black clip 0 pick these percentiles (1.5 % and 1 %, fitted to a reference conversion);
+/// each clip step moves one entry along [`PERCENTILES`].
+const WHITE_I: i64 = 5;
+const BLACK_I: i64 = 4;
 
 /// The analysis format; an older measurement is ignored (the photo is measured again).
-const ANALYSIS_VERSION: i64 = 3;
+const ANALYSIS_VERSION: i64 = 5;
 
 /// Density histogram range and resolution.
 const D_MIN: f32 = -0.5;
@@ -56,38 +63,39 @@ pub enum Wb {
 }
 
 /// A tone profile: a curve through (0,0), (½,½), (1,1) with these slopes at the shadows, the
-/// midpoint and the highlights (a monotone cubic Hermite), the stops of scene range `t = 0..1`
+/// midpoint and the highlights (a monotone cubic Hermite), the power that turns `t` into linear light
 /// spans, a floor that lifts black, a midtone gamma and a saturation factor.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Profile {
     pub name: &'static str,
     pub slopes: [f32; 3],
-    pub range: f32,
+    pub power: f32,
     pub lift: f32,
     pub gamma: f32,
     pub sat: f32,
 }
 
-const fn profile(name: &'static str, slopes: [f32; 3], range: f32, lift: f32, gamma: f32, sat: f32) -> Profile {
-    Profile { name, slopes, range, lift, gamma, sat }
+const fn profile(name: &'static str, slopes: [f32; 3], power: f32, lift: f32, gamma: f32, sat: f32) -> Profile {
+    Profile { name, slopes, power, lift, gamma, sat }
 }
 
 /// The tone profiles, in menu order. The first is the default.
 pub const PROFILES: [Profile; 14] = [
-    profile("Standard", [0.6, 1.35, 0.6], 6.5, 0.0, 1.0, 1.0),
-    profile("Soft", [0.85, 1.12, 0.85], 6.8, 0.0, 1.0, 0.97),
-    profile("Hard", [0.4, 1.6, 0.4], 6.2, 0.0, 1.0, 1.04),
-    profile("Highlight Soft", [0.6, 1.4, 0.3], 6.5, 0.0, 1.0, 1.0),
-    profile("Highlight Hard", [0.6, 1.25, 1.1], 6.5, 0.0, 1.0, 1.0),
-    profile("Shadow Soft", [1.0, 1.25, 0.6], 6.5, 0.0, 1.0, 1.0),
-    profile("Shadow Hard", [0.3, 1.45, 0.6], 6.5, 0.0, 1.0, 1.0),
-    profile("Cine Log", [1.0, 0.8, 1.0], 9.0, 0.07, 0.85, 0.85),
-    profile("Cine Rich", [0.45, 1.5, 0.5], 6.0, 0.0, 1.0, 1.15),
-    profile("Cine Flat", [0.9, 0.95, 0.9], 8.0, 0.03, 0.95, 0.92),
-    profile("Linear", [1.0, 1.0, 1.0], 6.5, 0.0, 1.0, 1.0),
-    profile("Linear Gamma", [1.0, 1.0, 1.0], 6.5, 0.0, 0.85, 1.0),
-    profile("Linear Deep", [1.0, 1.0, 1.0], 8.0, 0.0, 1.0, 1.0),
-    profile("Linear Flat", [1.0, 1.0, 1.0], 5.0, 0.0, 1.0, 1.0),
+    // fitted to a reference conversion: linear light ≈ t^1.5, highlights rolled off at the top
+    profile("Standard", [1.0, 1.0, 1.0], 1.5, 0.0, 1.0, 1.0),
+    profile("Soft", [1.15, 0.88, 1.15], 1.4, 0.0, 1.0, 0.97),
+    profile("Hard", [0.8, 1.25, 0.8], 1.6, 0.0, 1.0, 1.04),
+    profile("Highlight Soft", [1.0, 1.05, 0.6], 1.5, 0.0, 1.0, 1.0),
+    profile("Highlight Hard", [1.0, 0.95, 1.3], 1.5, 0.0, 1.0, 1.0),
+    profile("Shadow Soft", [1.3, 0.95, 1.0], 1.45, 0.0, 1.0, 1.0),
+    profile("Shadow Hard", [0.7, 1.1, 1.0], 1.55, 0.0, 1.0, 1.0),
+    profile("Cine Log", [1.2, 0.8, 1.2], 1.0, 0.05, 1.0, 0.85),
+    profile("Cine Rich", [0.75, 1.3, 0.75], 1.55, 0.0, 1.0, 1.12),
+    profile("Cine Flat", [1.1, 0.9, 1.1], 1.2, 0.02, 1.0, 0.92),
+    profile("Linear", [1.0, 1.0, 1.0], 1.0, 0.0, 1.0, 1.0),
+    profile("Linear Gamma", [1.0, 1.0, 1.0], 1.0, 0.0, 0.85, 1.0),
+    profile("Linear Deep", [1.0, 1.0, 1.0], 1.8, 0.0, 1.0, 1.0),
+    profile("Linear Flat", [1.0, 1.0, 1.0], 1.25, 0.0, 1.0, 1.0),
 ];
 
 /// A look: offsets layered on top of the sliders (so the sliders still start at 0).
@@ -309,7 +317,7 @@ impl Params {
             fade: num("fade", 0.0),
             soft_highs: flag("softHighs"),
             soft_lows: flag("softLows"),
-            auto_exposure: v.get("autoExposure").and_then(Value::as_bool).unwrap_or(true),
+            auto_exposure: flag("autoExposure"),
             white_clip: int("whiteClip"),
             black_clip: int("blackClip"),
             wb: match s("wbMode") {
@@ -331,19 +339,22 @@ impl Params {
 pub struct Analysis {
     /// For R, G, B and the mean density (index 3, used for B&W): the density at each of
     /// [`PERCENTILES`] from the thin end (`lo`) and the dense end (`hi`).
-    pub lo: [[f32; 7]; 4],
-    pub hi: [[f32; 7]; 4],
+    pub lo: [[f32; NP]; 4],
+    pub hi: [[f32; NP]; 4],
     /// Each channel's contrast relative to green, from the edges (green = 1).
     pub gain: [f32; 3],
     /// The brightness (mean green-equivalent density above the base) at each of [`PERCENTILES`],
     /// from the thin end and the dense end.
-    pub lum_lo: [f32; 7],
-    pub lum_hi: [f32; 7],
+    pub lum_lo: [f32; NP],
+    pub lum_hi: [f32; NP],
     /// Per channel, the balanced density above the base at each of [`PERCENTILES`] from the thin
     /// end: where each channel's black lies once the layers are balanced.
-    pub ge_lo: [[f32; 7]; 3],
+    pub ge_lo: [[f32; NP]; 3],
     /// The brightness at the 25th, 50th and 75th percentiles.
     pub lum_mid: [f32; 3],
+    /// Per channel, the median balanced density of the brightest 5 % of the frame: the highlight
+    /// reference, neutralised when it is nearly neutral already.
+    pub hl_ref: [f32; 3],
     /// The sample grid measured (width, height, step in pixels): a diagnostic, not used by the conversion.
     pub measured: [u32; 3],
 }
@@ -351,7 +362,7 @@ pub struct Analysis {
 impl Analysis {
     pub fn to_json(&self) -> Value {
         json!({"version": ANALYSIS_VERSION, "percentiles": PERCENTILES, "lo": self.lo, "hi": self.hi,
-               "gain": self.gain, "lumLo": self.lum_lo, "lumHi": self.lum_hi, "geLo": self.ge_lo, "lumMid": self.lum_mid,
+               "gain": self.gain, "lumLo": self.lum_lo, "lumHi": self.lum_hi, "geLo": self.ge_lo, "lumMid": self.lum_mid, "hlRef": self.hl_ref,
                "measured": self.measured})
     }
 
@@ -367,7 +378,7 @@ impl Analysis {
             }
             (a.len() == N).then_some(out)
         }
-        let table = |k: &str| -> Option<[[f32; 7]; 4]> {
+        let table = |k: &str| -> Option<[[f32; NP]; 4]> {
             let a = v.get(k)?.as_array()?;
             Some([floats(a.first()?)?, floats(a.get(1)?)?, floats(a.get(2)?)?, floats(a.get(3)?)?])
         };
@@ -386,6 +397,7 @@ impl Analysis {
                 [floats(a.first()?)?, floats(a.get(1)?)?, floats(a.get(2)?)?]
             },
             lum_mid: floats(v.get("lumMid")?)?,
+            hl_ref: floats(v.get("hlRef")?)?,
             measured: v.get("measured").and_then(|m| serde_json::from_value(m.clone()).ok()).unwrap_or_default(),
         })
     }
@@ -394,13 +406,14 @@ impl Analysis {
     /// balance. The result keeps the film's cast, which is the cue to press Measure.
     fn unmeasured() -> Analysis {
         Analysis {
-            lo: [[0.1; 7]; 4],
-            hi: [[2.1; 7]; 4],
+            lo: [[0.1; NP]; 4],
+            hi: [[2.1; NP]; 4],
             gain: [1.0; 3],
-            lum_lo: [0.0; 7],
-            lum_hi: [2.0; 7],
-            ge_lo: [[0.0; 7]; 3],
+            lum_lo: [0.0; NP],
+            lum_hi: [2.0; NP],
+            ge_lo: [[0.0; NP]; 3],
             lum_mid: [0.5, 1.0, 1.5],
+            hl_ref: [2.0; 3],
             measured: [0; 3],
         }
     }
@@ -450,8 +463,8 @@ impl Hist {
     }
 
     /// The value at each of [`PERCENTILES`] from the low end and from the high end.
-    fn ends(&self) -> ([f32; 7], [f32; 7]) {
-        let (mut lo, mut hi) = ([0.0; 7], [0.0; 7]);
+    fn ends(&self) -> ([f32; NP], [f32; NP]) {
+        let (mut lo, mut hi) = ([0.0; NP], [0.0; NP]);
         for (i, pct) in PERCENTILES.iter().enumerate() {
             lo[i] = self.at(pct / 100.0);
             hi[i] = self.at(1.0 - pct / 100.0 - 1e-9);
@@ -460,9 +473,19 @@ impl Hist {
     }
 }
 
-/// Auto exposure: where the median brightness should land in `t`, and the most it is lifted.
-const AUTO_MID: f32 = 0.42;
-const AUTO_MAX_LIFT: f32 = 0.3;
+/// Auto exposure: the linear light a frame's median brightness should reach, and the most it is
+/// lifted, in stops.
+const AUTO_MID: f32 = 0.18;
+const AUTO_MAX_STOPS: f32 = 2.0;
+
+/// The share of the frame, by brightness, that forms the highlight reference.
+const HIGHLIGHT_SHARE: f64 = 0.05;
+/// The highlight reference is neutralised fully when no channel's range differs from the mean by more
+/// than the first value, not at all beyond the second (a blue sky stays blue), and partly between.
+const HIGHLIGHT_NEUTRAL: (f32, f32) = (0.15, 0.30);
+
+/// The brightness band (green-density percentiles) whose edges set the colour balance.
+const EDGE_BAND: (f64, f64) = (0.10, 0.80);
 
 /// Most pixels the measurement reads: plenty for histograms, and it keeps Measure well inside the
 /// host's instruction budget whatever size it is handed.
@@ -486,26 +509,13 @@ pub fn analyze(px: &[f32], w: usize, h: usize, p: &Params) -> Analysis {
             grid.push(d.unwrap_or([f32::NAN; 3]));
         }
     }
-    // pass 1: per-channel and mean-density histograms, and edge energy per channel
+    // pass 1: per-channel and mean-density histograms
     let mut hists: Vec<Hist> = (0..4).map(|_| Hist::new()).collect();
-    let mut edge = [0f64; 3];
     let cell = |gx: usize, gy: usize| grid.get(gy * gw + gx).copied().filter(|d| d[0].is_finite());
-    for gy in 0..gh {
-        for gx in 0..gw {
-            let Some(d) = cell(gx, gy) else { continue };
-            for (k, v) in d.into_iter().chain([(d[0] + d[1] + d[2]) / 3.0]).enumerate() {
-                if let Some(hk) = hists.get_mut(k) {
-                    hk.add(v);
-                }
-            }
-            // differences to the right and below
-            for n in [(gx + 1 < gw).then(|| cell(gx + 1, gy)).flatten(), (gy + 1 < gh).then(|| cell(gx, gy + 1)).flatten()].into_iter().flatten() {
-                let g = [(n[0] - d[0]).abs(), (n[1] - d[1]).abs(), (n[2] - d[2]).abs()];
-                if g.iter().all(|v| *v < MAX_EDGE) {
-                    for c in 0..3 {
-                        edge[c] += f64::from(g[c] * g[c]);
-                    }
-                }
+    for d in grid.iter().filter(|d| d[0].is_finite()) {
+        for (k, v) in d.iter().copied().chain([(d[0] + d[1] + d[2]) / 3.0]).enumerate() {
+            if let Some(hk) = hists.get_mut(k) {
+                hk.add(v);
             }
         }
     }
@@ -516,13 +526,33 @@ pub fn analyze(px: &[f32], w: usize, h: usize, p: &Params) -> Analysis {
     for (k, hk) in hists.iter().enumerate() {
         (a.lo[k], a.hi[k]) = hk.ends();
     }
+    // pass 2: edge energy per channel, between mid-tone pixels only (green density between its
+    // 10th and 80th percentiles): large bright or dark areas, where a scan's densities are least
+    // reliable, would otherwise dominate the balance
+    let (band_lo, band_hi) = (hists[1].at(EDGE_BAND.0), hists[1].at(EDGE_BAND.1));
+    let in_band = |d: &[f32; 3]| (band_lo..=band_hi).contains(&d[1]);
+    let mut edge = [0f64; 3];
+    for gy in 0..gh {
+        for gx in 0..gw {
+            let Some(d) = cell(gx, gy).filter(in_band) else { continue };
+            // differences to the right and below
+            for n in [(gx + 1 < gw).then(|| cell(gx + 1, gy)).flatten(), (gy + 1 < gh).then(|| cell(gx, gy + 1)).flatten()].into_iter().flatten() {
+                let g = [(n[0] - d[0]).abs(), (n[1] - d[1]).abs(), (n[2] - d[2]).abs()];
+                if in_band(&n) && g.iter().all(|v| *v < MAX_EDGE) {
+                    for c in 0..3 {
+                        edge[c] += f64::from(g[c] * g[c]);
+                    }
+                }
+            }
+        }
+    }
     if edge[1] > 0.0 {
         for c in 0..3 {
             a.gain[c] = ((edge[c] / edge[1]).sqrt() as f32).clamp(0.2, 5.0);
         }
     }
-    // pass 2: brightness histogram of the balanced densities
-    let base = [a.lo[0][2], a.lo[1][2], a.lo[2][2]];
+    // pass 3: brightness histogram of the balanced densities
+    let base = [a.lo[0][BASE_I], a.lo[1][BASE_I], a.lo[2][BASE_I]];
     let mut lum = Hist::new();
     let mut ge: Vec<Hist> = (0..3).map(|_| Hist::new()).collect();
     for d in grid.iter().filter(|d| d[0].is_finite()) {
@@ -537,12 +567,28 @@ pub fn analyze(px: &[f32], w: usize, h: usize, p: &Params) -> Analysis {
         a.ge_lo[c] = h.ends().0;
     }
     a.lum_mid = [lum.at(0.25), lum.at(0.5), lum.at(0.75)];
+    // pass 4: the highlight reference, per channel over the brightest 5 %
+    let top = lum.at(1.0 - HIGHLIGHT_SHARE);
+    let mut hl: Vec<Hist> = (0..3).map(|_| Hist::new()).collect();
+    for d in grid.iter().filter(|d| d[0].is_finite()) {
+        let g = [(d[0] - base[0]) / a.gain[0], (d[1] - base[1]) / a.gain[1], (d[2] - base[2]) / a.gain[2]];
+        if (g[0] + g[1] + g[2]) / 3.0 >= top {
+            for (h, v) in hl.iter_mut().zip(g) {
+                h.add(v);
+            }
+        }
+    }
+    for (c, h) in hl.iter().enumerate() {
+        if h.count > 0 {
+            a.hl_ref[c] = h.at(0.5);
+        }
+    }
     a.measured = [gw as u32, gh as u32, step as u32];
     a
 }
 
-fn clip_index(clip: i64) -> usize {
-    (clip + 2).clamp(0, PERCENTILES.len() as i64 - 1) as usize
+fn clip_index(clip: i64, zero: i64) -> usize {
+    (clip + zero).clamp(0, NP as i64 - 1) as usize
 }
 
 fn bell(t: f32, centre: f32, width: f32) -> f32 {
@@ -643,7 +689,7 @@ struct Plan {
 
 fn plan(p: &Params) -> Plan {
     let a = p.analysis.clone().unwrap_or_else(Analysis::unmeasured);
-    let (wi, bi) = (clip_index(p.white_clip), clip_index(p.black_clip));
+    let (wi, bi) = (clip_index(p.white_clip, WHITE_I), clip_index(p.black_clip, BLACK_I));
     let bw = p.film == FilmType::BwNegative;
     let flip = p.film == FilmType::Positive;
     // on a slide the thin end is white, so the clips swap ends
@@ -670,10 +716,18 @@ fn plan(p: &Params) -> Plan {
         let thin = if neutral { [a.ge_lo[0][thin_i], a.ge_lo[1][thin_i], a.ge_lo[2][thin_i]] } else { [a.lum_lo[thin_i]; 3] };
         let thin_mean = (thin[0] + thin[1] + thin[2]) / 3.0;
         let dense = a.lum_hi[dense_i].max(thin_mean + 0.05);
+        // the highlight reference's range per channel relative to their mean: neutralise it when it is
+        // nearly neutral already (a white wall), leave it when it is clearly coloured (a blue sky)
+        let span = [a.hl_ref[0] - thin[0], a.hl_ref[1] - thin[1], a.hl_ref[2] - thin[2]];
+        let mean_span = (span[0] + span[1] + span[2]) / 3.0;
+        let ratio = if neutral && mean_span > 0.05 { span.map(|v| v / mean_span) } else { [1.0; 3] };
+        let dev = ratio.iter().map(|r| (r - 1.0).abs()).fold(0.0, f32::max);
+        let weight = ((HIGHLIGHT_NEUTRAL.1 - dev) / (HIGHLIGHT_NEUTRAL.1 - HIGHLIGHT_NEUTRAL.0)).clamp(0.0, 1.0);
         for c in 0..3 {
-            // t = ((d − base)/gain − thin_c)/(dense − thin_mean)
-            origin[c] = a.lo[c][2] + thin[c] * gain[c];
-            scale[c] = 1.0 / (gain[c] * (dense - thin_mean));
+            // t = ((d − base)/gain − thin_c)/((dense − thin_mean) · highlight correction_c)
+            let hl = 1.0 + weight * (ratio[c] - 1.0);
+            origin[c] = a.lo[c][BASE_I] + thin[c] * gain[c];
+            scale[c] = 1.0 / (gain[c] * (dense - thin_mean) * hl.max(0.2));
         }
         mid = (a.lum_mid[1] - thin_mean) / (dense - thin_mean);
     }
@@ -697,17 +751,18 @@ fn plan(p: &Params) -> Plan {
     params.darks += st.darks;
     if p.auto_exposure && p.analysis.is_some() {
         let mid = if flip { 1.0 - mid } else { mid };
-        // lift a dark frame's median toward mid grey (at most ~2 stops, never darker), and roll the highlights off
-        let lift = (AUTO_MID - mid).clamp(0.0, AUTO_MAX_LIFT);
-        params.exposure += lift * p.profile.range;
-        params.soft_highs |= lift > 0.0;
+        // lift a dark frame's median toward mid grey (at most 2 stops, never darker), and roll the highlights off
+        let light = mid.max(1e-3).powf(p.profile.power);
+        let stops = (AUTO_MID / light).log2().clamp(0.0, AUTO_MAX_STOPS);
+        params.exposure += stops;
+        params.soft_highs |= stops > 0.0;
     }
     let tone = Lut::new(-0.6, 1.6, 2200, move |t| tone(t, &params, contrast, &pr));
     let fade = pr.lift + (p.fade + look.fade * 100.0) / 200.0;
-    let range = pr.range;
-    let linear = Lut::new(0.0, 1.0, 1024, move |t| {
-        let t = fade + t.clamp(0.0, 1.0) * (1.0 - fade);
-        (2f32.powf(range * t) - 1.0) / (2f32.powf(range) - 1.0)
+    let power = pr.power;
+    let linear = Lut::new(0.0, T_MAX, 1300, move |t| {
+        let t = fade + t.clamp(0.0, T_MAX) * (1.0 - fade);
+        shoulder(t.powf(power))
     });
     let shadows = [look.shadows[0] + st.shadows[0], look.shadows[1] + st.shadows[1], look.shadows[2] + st.shadows[2]];
     let highlights = [look.highlights[0] + st.highlights[0], look.highlights[1] + st.highlights[1], look.highlights[2] + st.highlights[2]];
@@ -731,11 +786,20 @@ fn hue_factor(t: &[f32; 3], hs: &[f32; 6]) -> f32 {
     a + (b - a) * (f - i as f32)
 }
 
+/// Headroom above white (`t` = 1) that the tone stage keeps for the highlight roll-off.
+const T_MAX: f32 = 1.3;
+
+/// The highlight roll-off on linear light: unchanged up to 0.9, then easing toward 1.
+fn shoulder(l: f32) -> f32 {
+    if l > 0.9 { 0.9 + 0.1 * ((l - 0.9) / 0.1).tanh() } else { l }
+}
+
 /// The profile and the tone sliders, on one channel's normalised log exposure.
 fn tone(mut t: f32, p: &Params, contrast: f32, pr: &Profile) -> f32 {
     let (bp, wp) = (-p.blacks / 250.0, 1.0 - p.whites / 250.0);
     t = (t - bp) / (wp - bp).max(0.05);
-    t += p.exposure / pr.range;
+    // E stops of light: t^power scales by 2^E
+    t *= 2f32.powf(p.exposure / pr.power);
     t = 0.5 + (t - 0.5) * (1.0 + contrast / 100.0);
     t += 0.25 * (p.lights / 100.0 * bell(t, 0.75, 0.2) + p.darks / 100.0 * bell(t, 0.25, 0.2));
     let g = pr.gamma * 2f32.powf(-p.brightness / 50.0);
@@ -747,7 +811,8 @@ fn tone(mut t: f32, p: &Params, contrast: f32, pr: &Profile) -> f32 {
     }
     t = if p.soft_highs && t > 0.85 { 0.85 + 0.15 * ((t - 0.85) / 0.15).tanh() } else { t };
     t = if p.soft_lows && t < 0.15 { 0.15 - 0.15 * ((0.15 - t) / 0.15).tanh() } else { t };
-    t.clamp(0.0, 1.0)
+    // a little headroom above white: the linear stage rolls it off instead of clipping
+    t.clamp(0.0, T_MAX)
 }
 
 /// Converts interleaved linear RGB in place.

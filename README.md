@@ -41,9 +41,8 @@ Filters need no permissions.
 | Tone | Tone profile, Exposure, Brightness, Contrast, Lights, Darks, Whites, Blacks, Fade, Soft highs, Soft lows, Auto exposure, White clip, Black clip |
 | Colour | WB (Auto-Neutral, Auto-Color, Auto-Warm, Auto-Cool, None), Temp, Tint |
 
-**Auto exposure** (on by default) lifts a dark frame's median brightness toward mid grey, by at most
-about 2 stops, never darker, and rolls the highlights off so a bright sky doesn't clip. It needs a
-measurement; turn it off to get the plain conversion.
+**Auto exposure** (off by default) lifts a dark frame's median brightness toward mid grey, by at most
+2 stops, never darker, and rolls the highlights off so a bright sky doesn't clip. It needs a measurement.
 
 **WB modes.** *Auto-Neutral* (the default) balances the dye layers from the edges in the frame and
 neutralises each channel's black (see below). *Auto-Color* stretches each channel between its own darkest and brightest values:
@@ -124,10 +123,11 @@ your own scans. Sources:
 | Night Cine | tungsten cine stock in daylight: teal shadows, warm highlights |
 | Archive Print | optical print on archival paper: deep blacks, rich reds, warm |
 
-**Tone profiles** are curves through black, mid grey and white with chosen slopes at each: Standard,
-Soft, Hard; Highlight Soft / Hard and Shadow Soft / Hard (shoulder or toe only); Cine Log (very flat
-and lifted, for grading), Cine Rich, Cine Flat; Linear, Linear Gamma (brighter mids), Linear Deep
-(more stops, darker), Linear Flat (fewer stops, brighter).
+**Tone profiles** turn the normalised value `t` into light. *Standard* was fitted to a reference
+conversion of the same scan (Negative Lab Pro, its standard settings): linear light ≈ `t`^1.5, with the
+top rolled off instead of clipped. The others vary it: Soft, Hard; Highlight Soft / Hard and Shadow
+Soft / Hard (shoulder or toe only); Cine Log (flat and lifted, for grading), Cine Rich, Cine Flat;
+Linear (light = `t`), Linear Gamma (brighter mids), Linear Deep (darker), Linear Flat (brighter).
 
 **Sharpening** is not part of this filter. A filter that reads neighbouring pixels makes the host
 run it on the whole frame at full resolution after every parameter change, which is slow in the
@@ -141,20 +141,30 @@ Details are in `src/convert.rs`. In short, everything works in density (`−log1
 
 1. **Base:** the film base (orange mask plus fog) is removed as a per-channel density offset.
 2. **Balance:** most density changes across edges are changes of light, not of colour, so the
-   channels' mean edge strengths give each dye layer's contrast relative to green.
+   channels' edge strengths give each dye layer's contrast relative to green. Only edges between
+   mid-tone pixels count (green density between its 10th and 80th percentiles): a large bright wall
+   or a dark area, where a scan's densities are least reliable, would otherwise tilt the balance.
 3. **Ends:** each channel's black is its own darkest balanced density, so the shadows come out
    neutral. White comes from the brightness histogram, shared by the channels, so no single channel
-   or object sets it. White / Black clip choose which stored percentile is the end:
-   0 → 0.1 %, +4 → 2 %, −2 → 0 %.
-4. The normalised log exposure goes through the look and the tone profile, then back to linear light.
+   or object sets it. The brightest 5 % of the frame is then neutralised when it's nearly neutral
+   already (a white wall), and left alone when it's clearly coloured, with a fade between. White /
+   Black clip choose which stored percentile is the end: at 0, 1.5 % (white) and 1 % (black); each
+   step moves along 0, 0.1, 0.25, 0.5, 1, 1.5, 2, 3, 5 %.
+4. The normalised value goes through the look and the tone profile, then into light.
+
+**Checked against a reference.** On a scan you also converted with Negative Lab Pro, the default settings
+come within 9.9 levels (of 255) of its result over the whole frame, measured on an 8-bit export of the
+negative (v0.4: about 25, with a strong yellow-green cast).
 
 Speed: the logarithm and the tone curve are lookup tables. In the app's interpreter, a
-2.7 MP render takes about 2 s (v0.1: 3.6 s), and Measure about 1 s: it reads at most 300 000 pixels, with each density computed once.
+2.7 MP render takes about 1–2 s (v0.1: 3.6 s), and Measure about 0.5 s: it reads at most 300 000
+pixels, with each density computed once.
 
 ## Not done yet
 
-- **Tuning on real RAW captures.** The defaults pass synthetic tests, but they've only been checked
-  against an 8-bit export, whose display tone curve hides the red channel's highlights.
+- **Tuning on real RAW captures.** The fit used an 8-bit export of the negative, whose display tone
+  curve bends the densities, so the in-app result (from the linear RAW) can differ slightly. More
+  reference pairs (your scan + a conversion you like) will tighten it.
 - **Roll analysis:** one shared measurement for a whole roll needs `_analysis` from several photos,
   which the ABI doesn't offer yet. The workaround is to measure a typical frame and copy the filter
   with its analysis.
