@@ -35,6 +35,7 @@ const TABLES: [Table; 2] = [
             ("highlights", Default::Arr(&[0.0; 3])),
             ("hue_sat", Default::Arr(&[1.0; 6])),
             ("fade", Default::Num(0.0)),
+            ("group", Default::Str("")),
         ],
     ),
 ];
@@ -43,6 +44,7 @@ const TABLES: [Table; 2] = [
 enum Default {
     Num(f64),
     Arr(&'static [f64]),
+    Str(&'static str),
 }
 
 fn num(v: &toml::Value) -> Option<f64> {
@@ -81,6 +83,8 @@ fn main() -> Result<(), String> {
             for (f, d) in fields {
                 let v = match (e.get(*f), d) {
                     (None, Default::Num(x)) => lit(*x),
+                    (None, Default::Str(t)) => format!("{t:?}"),
+                    (Some(v), Default::Str(_)) => format!("{:?}", v.as_str().ok_or_else(|| format!("{at} ({name}): {f} must be text"))?),
                     (None, Default::Arr(a)) => format!("[{}]", a.iter().map(|x| lit(*x)).collect::<Vec<_>>().join(", ")),
                     (Some(v), Default::Num(_)) => lit(num(v).ok_or_else(|| format!("{at} ({name}): {f} must be a number"))?),
                     (Some(v), Default::Arr(a)) => {

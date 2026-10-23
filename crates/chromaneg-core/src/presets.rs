@@ -38,6 +38,8 @@ pub struct Stock {
     pub hue_sat: [f32; 6],
     /// Lifts black (in `t`, as a profile's lift; the creative looks' matte).
     pub fade: f32,
+    /// The menu section it's listed in (`""`: the top level).
+    pub group: &'static str,
 }
 
 include!(concat!(env!("OUT_DIR"), "/presets.rs"));

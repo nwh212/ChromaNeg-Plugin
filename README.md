@@ -31,6 +31,10 @@ the app's `docs/plugins.md` ▸ *Pixel filters*), runs in its sandbox and asks f
   [nwh212/chromaforge-plugins](https://github.com/nwh212/chromaforge-plugins/tree/plugin-base-tone)
   and offered upstream; until an app release has it, raw captures (camera RAWs, raw DNGs) come out
   more contrasty than intended. TIFF and JPEG scans aren't affected.
+- **Menu sections** (`"groups"` on the Film stock / look menu): the stocks by brand and the creative
+  looks as collapsible sections. That's on the `plugin-choice-groups` branch of
+  [nwh212/chromaforge-plugins](https://github.com/nwh212/chromaforge-plugins/tree/plugin-choice-groups)
+  and offered upstream; until then the menu is one list, in the same order.
 
 ## Build from source
 

@@ -10,6 +10,9 @@ levels of 255 (see the README).
   Scan, Night Cine, Archive Print), rendering exactly as the looks did. An edit that used a look
   shows without it after updating: pick the "Creative: …" entry again. Neutral, Rich, Clean
   Contrast, Fashion Cool, Green Shadows and Vivid Green are gone.
+- **The menu in sections**: Kodak, CineStill, Fujifilm, Harman, Lomography and Creative looks, each
+  a collapsible section, with Generic and None at the top. That needs an app that reads the
+  manifest's `groups` (offered upstream; see the README); others show the same entries as one list.
 - No other change in the conversion; measurements from 0.10 still apply.
 - For developers: the project is a workspace now (conversion, plug-in plumbing, plug-in), the
   presets live in a data file, and a reference bench checks every change (see DEVELOPING.md).

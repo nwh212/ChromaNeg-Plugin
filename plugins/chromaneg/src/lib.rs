@@ -24,6 +24,7 @@ pub fn manifest() -> String {
     TEMPLATE
         .replace("\"@version\"", &format!("\"{}\"", env!("CARGO_PKG_VERSION")))
         .replace("\"@stocks\"", &names(STOCKS.iter().map(|s| s.name).collect()))
+        .replace("\"@stock_groups\"", &names(STOCKS.iter().map(|s| s.group).collect()))
         .replace("\"@profiles\"", &names(PROFILES.iter().map(|p| p.name).collect()))
 }
 
@@ -80,6 +81,14 @@ mod tests {
             |key: &str| -> Vec<String> { m["params"][key]["options"].as_array().unwrap().iter().map(|v| v.as_str().unwrap().into()).collect() };
         assert_eq!(options("stock"), STOCKS.iter().map(|s| s.name).collect::<Vec<_>>());
         assert_eq!(options("toneProfile"), PROFILES.iter().map(|p| p.name).collect::<Vec<_>>());
+        // one menu group per stock, each group's stocks next to each other
+        let groups: Vec<&str> = m["params"]["stock"]["groups"].as_array().unwrap().iter().map(|g| g.as_str().unwrap()).collect();
+        assert_eq!(groups.len(), STOCKS.len());
+        let mut seen: Vec<&str> = Vec::new();
+        for w in groups.windows(2).filter(|w| w[0] != w[1]) {
+            assert!(!seen.contains(&w[1]), "group {:?} is split", w[1]);
+            seen.push(w[0]);
+        }
         // every choice's default is one of its options
         for (k, spec) in m["params"].as_object().unwrap() {
             if let Some(opts) = spec["options"].as_array() {
