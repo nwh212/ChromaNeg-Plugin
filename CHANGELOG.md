@@ -4,6 +4,12 @@ Measurements made with one version can need **Measure** again in a later one; th
 "Reference error" is the mean difference from a Negative Lab Pro conversion of the same scan, in
 levels of 255 (see the README).
 
+## 0.12.0
+- **ChromaNeg is now ChromaLab.** Only the name changes: the plug-in keeps its ID, so installing
+  ChromaLab replaces ChromaNeg, and photos converted with ChromaNeg keep their settings and
+  measurements (their Plug-in Filters row may still say "ChromaNeg" until the filter is added again).
+  The release file is now `chromalab-vX.Y.Z.wasm`. No change in the conversion.
+
 ## 0.11.0
 - **Looks merged into the Film stock menu** (now "Film stock / look"): the stocks, by brand, then
   six creative looks at the end as "Creative: …" (Golden Hour, Portrait Warm, Portrait Airy, Crisp

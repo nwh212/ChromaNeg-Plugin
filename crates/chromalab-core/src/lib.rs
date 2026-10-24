@@ -1,4 +1,4 @@
-//! ChromaNeg's conversion, independent of the plug-in ABI (natively testable).
+//! ChromaLab's conversion, independent of the plug-in ABI (natively testable).
 //!
 //! Sources: own design on textbook film sensitometry (density = −log10 transmittance; a dye
 //! layer's density is close to linear in log exposure over its useful range), with the colour

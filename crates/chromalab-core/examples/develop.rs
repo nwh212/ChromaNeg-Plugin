@@ -2,7 +2,7 @@
 //! `cargo run --release --example develop -- in.f32 width height '{"borderBuffer":20}' out.f32`
 //! (interleaved little-endian linear RGB `f32`). Measure runs on a copy with a long edge of 1024, as the host's does.
 
-use chromaneg_core::{Params, analyze, convert};
+use chromalab_core::{Params, analyze, convert};
 
 fn main() -> Result<(), String> {
     let a: Vec<String> = std::env::args().collect();

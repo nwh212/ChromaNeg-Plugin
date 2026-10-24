@@ -1,4 +1,4 @@
-//! The reference bench: converts each scan of a reference set with ChromaNeg and scores it against a
+//! The reference bench: converts each scan of a reference set with ChromaLab and scores it against a
 //! reference conversion of the same scan (mean difference in levels of 255, and the bias per
 //! channel), so every change is checked against all of them at once.
 //!
@@ -22,14 +22,14 @@
 //!
 //! Each frame is cropped, measured inside a 3 % border buffer (as a user crops to the picture) and
 //! converted. `--save` keeps the scores as `REFS_DIR/baseline.json`, and later runs print the change
-//! from it. `--sheet` writes reference | ChromaNeg pairs side by side. `--golden save` hashes the
+//! from it. `--sheet` writes reference | ChromaLab pairs side by side. `--golden save` hashes the
 //! output of every frame under a fixed set of settings, and `--golden check` compares against
 //! those hashes: a refactor that must not change the result passes only if every output is
 //! bit-identical.
 
 use std::path::{Path, PathBuf};
 
-use chromaneg_core::{Params, analyze, convert};
+use chromalab_core::{Params, analyze, convert};
 use image::{RgbImage, imageops};
 use serde_json::{Value, json};
 
@@ -292,7 +292,7 @@ fn write_sheet(pairs: &[(Vec<f32>, Vec<f32>, usize, usize)], path: &str) -> Resu
         }
     }
     sheet.save(path).map_err(|e| format!("{path}: {e}"))?;
-    println!("wrote {path} (each pair: reference | ChromaNeg)");
+    println!("wrote {path} (each pair: reference | ChromaLab)");
     Ok(())
 }
 

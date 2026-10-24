@@ -1,5 +1,5 @@
-//! ChromaNeg, the plug-in: its manifest and the ABI exports. The conversion is
-//! `chromaneg-core`; the ABI plumbing is `pixel-filter`.
+//! ChromaLab, the plug-in: its manifest and the ABI exports. The conversion is
+//! `chromalab-core`; the ABI plumbing is `pixel-filter`.
 //!
 //! The workflow follows the familiar two-step negative-conversion plug-ins:
 //!
@@ -12,7 +12,7 @@
 
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
-use chromaneg_core::{BorderOverlay, Converter, PROFILES, Params, STOCKS, analyze_with};
+use chromalab_core::{BorderOverlay, Converter, PROFILES, Params, STOCKS, analyze_with};
 
 /// The manifest as written, in dialog order; `@version` and the menus of stocks (with the creative
 /// looks) and profiles are filled in from the code by [`manifest`].

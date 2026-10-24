@@ -1,7 +1,7 @@
-# ChromaNeg
+# ChromaLab
 
 Film negative conversion for [Chromaforge](https://github.com/emmertex/lightcraft-classic) ("the app"
-below), the open-source raw developer. ChromaNeg is a WebAssembly pixel-filter plug-in that turns camera
+below), the open-source raw developer. ChromaLab is a WebAssembly pixel-filter plug-in that turns camera
 or scanner captures of colour negatives, black-and-white negatives and slides into positives, in the
 spirit of the two-step negative-conversion tools: **measure** the frame once, then every render
 **converts** with that measurement. It adds film-stock corrections, creative looks, tone profiles, and Glow / Fade.
@@ -9,24 +9,28 @@ spirit of the two-step negative-conversion tools: **measure** the frame once, th
 It uses the app's pixel-filter ABI (PhotoCraft plug-in ABI v1 with the `pc_analyze` v1.1 proposal; see
 the app's `docs/plugins.md` ▸ *Pixel filters*), runs in its sandbox and asks for no permissions.
 
+ChromaLab was called ChromaNeg until 0.12. It keeps the same plug-in ID
+(`io.github.nwh212.chromaneg`), so it replaces ChromaNeg when installed, and photos converted with
+ChromaNeg keep working.
+
 ## Download and install
 
-1. Download `chromaneg-<version>.wasm` from [Releases](../../releases).
+1. Download `chromalab-<version>.wasm` from [Releases](../../releases).
 2. In the app: File ▸ Plug-ins ▸ Plug-in Manager… ▸ Install…, and pick the file
-   (or `lightcraft-classic-cli commands plugin.install '{"path": "…/chromaneg-<version>.wasm"}'`).
+   (or `lightcraft-classic-cli commands plugin.install '{"path": "…/chromalab-<version>.wasm"}'`).
 3. Installing a newer version replaces the old one (same plug-in id); press **Measure** again on photos
    measured with an older version when its notes say the measurement format changed.
 
 **Compatibility:** Chromaforge v26.43 or newer with pixel-filter plug-ins.
 
-**App features ChromaNeg asks for** (in its manifest; an app without them still runs it):
+**App features ChromaLab asks for** (in its manifest; an app without them still runs it):
 - **Measuring inside the crop** (`"analyzeArea": "crop"`): the border buffer applies inside your
   crop. In the app since [emmertex/lightcraft-classic#444](https://github.com/emmertex/lightcraft-classic/pull/444);
   older versions measure the whole uncropped photo, and on a cropped photo the *Show border buffer*
   overlay then doesn't match what's measured.
 - **No second tone curve on raw files** (`"baseTone": "neutral"`): the app tones a raw after the
-  Source stage with the camera's own curve (or its default raw curve), which on top of ChromaNeg's
-  conversion adds contrast and saturation and moves the brightness. ChromaNeg asks the app to show
+  Source stage with the camera's own curve (or its default raw curve), which on top of ChromaLab's
+  conversion adds contrast and saturation and moves the brightness. ChromaLab asks the app to show
   its result as it is. That's on the `plugin-base-tone` branch of
   [nwh212/chromaforge-plugins](https://github.com/nwh212/chromaforge-plugins/tree/plugin-base-tone)
   and offered upstream; until an app release has it, raw captures (camera RAWs, raw DNGs) come out
@@ -40,8 +44,8 @@ the app's `docs/plugins.md` ▸ *Pixel filters*), runs in its sandbox and asks f
 
 ```sh
 rustup target add wasm32-unknown-unknown
-cargo build --release --target wasm32-unknown-unknown -p chromaneg
-# → target/wasm32-unknown-unknown/release/chromaneg.wasm (≈170 KB, no imports)
+cargo build --release --target wasm32-unknown-unknown -p chromalab
+# → target/wasm32-unknown-unknown/release/chromalab.wasm (≈170 KB, no imports)
 ```
 
 Rust 1.88 or newer. `cargo test --workspace` runs everything natively (see *Test* below).
@@ -50,15 +54,15 @@ Rust 1.88 or newer. `cargo test --workspace` runs everything natively (see *Test
 
 | Path | What |
 |---|---|
-| `crates/chromaneg-core/presets.toml` | the tone profiles, film stocks and creative looks as data: add or change one here (each lists only what differs from neutral; a typo stops the build with a message) |
-| `crates/chromaneg-core` | the conversion, independent of the plug-in ABI: `params` (what the host sends), `presets` (profiles, stocks), `analysis` (Measure), `plan` (how each sample becomes light), `convert`, `overlay` (border buffer preview) |
+| `crates/chromalab-core/presets.toml` | the tone profiles, film stocks and creative looks as data: add or change one here (each lists only what differs from neutral; a typo stops the build with a message) |
+| `crates/chromalab-core` | the conversion, independent of the plug-in ABI: `params` (what the host sends), `presets` (profiles, stocks), `analysis` (Measure), `plan` (how each sample becomes light), `convert`, `overlay` (border buffer preview) |
 | `crates/pixel-filter` | the plug-in plumbing any pixel filter needs (memory blocks, parameters, chunked conversion, the ABI checks), so a new plug-in is only its manifest and its maths |
-| `plugins/chromaneg` | the plug-in: `manifest.json` (dialog order; the version and the menus are filled in from the code) and the ABI exports |
+| `plugins/chromalab` | the plug-in: `manifest.json` (dialog order; the version and the menus are filled in from the code) and the ABI exports |
 | `tools/bench`, `tools/dump-source` | the reference bench and its input converter (see DEVELOPING.md) |
 
-The version lives in `plugins/chromaneg/Cargo.toml` only; the manifest takes it from there.
+The version lives in `plugins/chromalab/Cargo.toml` only; the manifest takes it from there.
 
-To change ChromaNeg, see [DEVELOPING.md](DEVELOPING.md): where things are, the reference bench
+To change ChromaLab, see [DEVELOPING.md](DEVELOPING.md): where things are, the reference bench
 (`tools/bench`) and releasing.
 
 ## Use
@@ -66,7 +70,7 @@ To change ChromaNeg, see [DEVELOPING.md](DEVELOPING.md): where things are, the r
 1. **Capture:** expose so that no channel clips. The film base transmits a lot of red, so red clips
    first, and a clipped red channel comes out starved and blue. White-balance on the clear film
    border if you like, though the conversion removes the mask either way.
-2. In Develop ▸ Plug-in Filters, add **ChromaNeg**. It asks for the **Source** stage, so it runs on
+2. In Develop ▸ Plug-in Filters, add **ChromaLab**. It asks for the **Source** stage, so it runs on
    the linear capture before every other develop step.
 3. Crop to the frame if you like, then set **Type** and **Border buffer %**, so the film holder,
    sprocket holes and edge print lie outside the measured area. Tick **Show border buffer** to see it:
@@ -285,6 +289,6 @@ pixels, with each density computed once.
 - analysis JSON round-trips, and the manifest's menus match the code;
 - hostile input never panics.
 
-`cargo run --release -p chromaneg-core --example develop -- in.f32 w h '{"borderBuffer":20}' out.f32`
+`cargo run --release -p chromalab-core --example develop -- in.f32 w h '{"borderBuffer":20}' out.f32`
 runs Measure and a conversion on a raw linear `f32` image, for tuning by eye;
-`cargo run -p chromaneg --example manifest` prints the manifest the app reads.
+`cargo run -p chromalab --example manifest` prints the manifest the app reads.

@@ -1,4 +1,4 @@
-# ChromaNeg's presets: tone profiles and film stocks (with the creative looks at the end), in menu order (the first of each is
+# ChromaLab's presets: tone profiles and film stocks (with the creative looks at the end), in menu order (the first of each is
 # the default). The build turns this file into constants (build.rs), so editing it is all a new or
 # changed preset takes; the menus in the manifest follow. A field left out takes the neutral value:
 #

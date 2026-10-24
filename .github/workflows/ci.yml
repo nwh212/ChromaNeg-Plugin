@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
-  # publishing a release (tag vX.Y.Z) on GitHub builds and attaches chromaneg-vX.Y.Z.wasm
+  # publishing a release (tag vX.Y.Z) on GitHub builds and attaches chromalab-vX.Y.Z.wasm
   release:
     types: [published]
 
@@ -23,11 +23,11 @@ jobs:
       - run: cargo fmt --check
       - run: cargo clippy --release --workspace --all-targets -- -D warnings
       - run: cargo test --release --workspace
-      - run: cargo build --release --target wasm32-unknown-unknown -p chromaneg
+      - run: cargo build --release --target wasm32-unknown-unknown -p chromalab
       - uses: actions/upload-artifact@v4
         with:
-          name: chromaneg-wasm
-          path: target/wasm32-unknown-unknown/release/chromaneg.wasm
+          name: chromalab-wasm
+          path: target/wasm32-unknown-unknown/release/chromalab.wasm
 
   release:
     if: github.event_name == 'release'
@@ -45,13 +45,13 @@ jobs:
           targets: wasm32-unknown-unknown
       - name: Check the tag matches Cargo.toml
         run: |
-          v=$(grep -m1 '^version' plugins/chromaneg/Cargo.toml | cut -d'"' -f2)
-          test "v$v" = "$TAG" || { echo "release tag $TAG but plugins/chromaneg/Cargo.toml says $v"; exit 1; }
-      - run: cargo build --release --target wasm32-unknown-unknown -p chromaneg
+          v=$(grep -m1 '^version' plugins/chromalab/Cargo.toml | cut -d'"' -f2)
+          test "v$v" = "$TAG" || { echo "release tag $TAG but plugins/chromalab/Cargo.toml says $v"; exit 1; }
+      - run: cargo build --release --target wasm32-unknown-unknown -p chromalab
       - name: Attach the plug-in (and the changelog's notes when the release has none)
         run: |
-          cp target/wasm32-unknown-unknown/release/chromaneg.wasm "chromaneg-$TAG.wasm"
-          gh release upload "$TAG" "chromaneg-$TAG.wasm" --clobber
+          cp target/wasm32-unknown-unknown/release/chromalab.wasm "chromalab-$TAG.wasm"
+          gh release upload "$TAG" "chromalab-$TAG.wasm" --clobber
           if [ -z "$(gh release view "$TAG" --json body --jq .body)" ]; then
             notes=$(awk -v v="## ${TAG#v}" '$0 ~ "^"v {f=1; next} /^## / {f=0} f' CHANGELOG.md)
             gh release edit "$TAG" --notes "$notes"
