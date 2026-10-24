@@ -8,7 +8,12 @@ levels of 255 (see the README).
 - **ChromaNeg is now ChromaLab.** Only the name changes: the plug-in keeps its ID, so installing
   ChromaLab replaces ChromaNeg, and photos converted with ChromaNeg keep their settings and
   measurements (their Plug-in Filters row may still say "ChromaNeg" until the filter is added again).
-  The release file is now `chromalab-vX.Y.Z.wasm`. No change in the conversion.
+  The release file is now `chromalab-vX.Y.Z.wasm`.
+- **Warmer, truer colour on camera scans**: red came out short in the brighter parts (golden leaves
+  pale cyan, skin cool, jeans purple). Shared range now gives red a little more contrast, fitted to
+  the reference conversions: reference error over fourteen frames 18.8 → 17.6, two leaf-covered Fuji
+  400 frames 21.8 → 17.9 and 17.2 → 14.4. A frame dominated by blue sky comes out slightly redder in
+  the sky than before. Measurements from 0.11 still apply.
 
 ## 0.11.0
 - **Looks merged into the Film stock menu** (now "Film stock / look"): the stocks, by brand, then

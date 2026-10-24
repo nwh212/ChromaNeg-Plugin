@@ -12,6 +12,10 @@ pub(crate) const BLACK_I: i64 = 7;
 /// difference between the channels' averages balanced; fitted to reference conversions.
 pub(crate) const CUBE_BLACK_I: i64 = 4;
 pub(crate) const CUBE_AVERAGE: f32 = 0.5;
+/// Red's contrast relative to the other channels in the cube-root domain. Camera captures came
+/// out short of red in their brighter parts (golden leaves pale cyan, skin cool): fitted to the
+/// reference conversions, it helps warm and indoor scenes most and costs a blue-sky frame a little.
+const CUBE_RED_GAIN: f32 = 1.1;
 pub(crate) const CUBE_WHITE_I: i64 = 3;
 pub(crate) const CUBE_BALANCE_I: usize = 8;
 /// How much steeper than a profile's own power the cube-root domain's `t` is turned into light.
@@ -83,7 +87,7 @@ pub(crate) fn plan(p: &Params) -> Plan {
                 // each channel to its own black and white
                 Wb::Color => (black(c), 1.0 / range(c)),
                 Wb::None => (black(1), 1.0 / range(1)),
-                _ => (black(1) + CUBE_AVERAGE * average(c), 1.0 / range(1)),
+                _ => (black(1) + CUBE_AVERAGE * average(c), if c == 0 { CUBE_RED_GAIN } else { 1.0 } / range(1)),
             };
         }
         mid = (black(1) - v(1, a.dmid[1])) / range(1);

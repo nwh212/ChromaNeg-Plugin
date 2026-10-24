@@ -3,10 +3,30 @@
 use crate::{analysis::*, convert::*, math::*, overlay::*, params::*, plan::*, presets::*};
 use serde_json::{Value, json};
 
+/// The dye layers' contrast in a synthetic camera scan: red reads weaker than green and blue (as
+/// the shared range's red gain, fitted to real scans, assumes), so much weaker that mid grey comes
+/// out neutral (found by bisection); the others alike.
+fn camera_layers() -> [f32; 3] {
+    let (w, h) = (200, 40);
+    let red_minus_green = |g: f32| {
+        let mut px = negative_with(w, h, [g, 0.65, 0.65]);
+        let p = measured(&px, w, h, json!({"stock": "None (as scanned)"}));
+        convert(&mut px, &p);
+        let i = ((h / 2) * w + w / 2) * 3;
+        px[i] - px[i + 1]
+    };
+    let (mut lo, mut hi) = (0.3f32, 0.65f32);
+    for _ in 0..30 {
+        let mid = 0.5 * (lo + hi);
+        if red_minus_green(mid) > 0.0 { hi = mid } else { lo = mid }
+    }
+    [0.5 * (lo + hi), 0.65, 0.65]
+}
+
 /// A synthetic colour negative: an orange mask (per-channel base density) plus a scene whose
 /// log exposure is spread over the dye layers alike; a clear film border around it.
 fn negative(w: usize, h: usize) -> Vec<f32> {
-    negative_with(w, h, [0.65; 3])
+    negative_with(w, h, camera_layers())
 }
 
 /// [`negative`] with each dye layer's own contrast.
@@ -41,8 +61,11 @@ fn a_grey_negative_comes_out_neutral_and_increasing_in_every_wb_mode() {
     let (w, h) = (200, 40);
     // the shared range keeps layers of unequal contrast unequal, as the film has them; the
     // per-channel method stretches each layer to its own range in density
-    let cases =
-        [("Shared range", "Auto-Neutral", [0.65; 3]), ("Shared range", "Auto-Color", [0.65; 3]), ("Per channel", "Auto-Neutral", [0.6, 0.65, 0.7])];
+    let cases = [
+        ("Shared range", "Auto-Neutral", camera_layers()),
+        ("Shared range", "Auto-Color", [0.65; 3]),
+        ("Per channel", "Auto-Neutral", [0.6, 0.65, 0.7]),
+    ];
     for (method, wb, gamma) in cases {
         let mut px = negative_with(w, h, gamma);
         let wb = wb.to_string() + " / " + method;
