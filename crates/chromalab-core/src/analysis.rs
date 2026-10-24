@@ -246,6 +246,65 @@ pub(crate) fn exclude_bare_light(grid: &mut [[f32; 3]]) {
     }
 }
 
+/// The outer band of the measured area, each side, where samples denser than the centre's are
+/// left out; the margin they must exceed the centre's densest 0.5 % by.
+const EDGE_BAND_SHARE: f32 = 0.2;
+const EDGE_DENSE_MARGIN: f32 = 0.1;
+/// …and samples thinner than the centre's thinnest 0.5 % by this much (bare film base).
+const EDGE_THIN_MARGIN: f32 = 0.03;
+/// Dense edge samples are left out only when they cover at most this share of the area (edge
+/// print is small), thin ones only when their green densities lie within this range (film base is
+/// uniform).
+const EDGE_DENSE_MAX_SHARE: f32 = 0.08;
+const EDGE_THIN_SPREAD: f32 = 0.08;
+
+/// Leaves out samples in the outer band of the measured area (`gw × gh` cells) that are clearly
+/// denser, in any channel, than the densest of its centre (edge print, frame numbers, a light leak
+/// on the rebate) or thinner than its thinnest (bare film base), as when the whole strip is
+/// measured: they would set white and black outside the picture's own range, flattening it. A
+/// bright or dark object inside the picture (a white clock face, a shadow) is in the centre's
+/// range and stays.
+pub(crate) fn exclude_strip_edges(grid: &mut [[f32; 3]], gw: usize, gh: usize) {
+    let (bx, by) = ((gw as f32 * EDGE_BAND_SHARE) as usize, (gh as f32 * EDGE_BAND_SHARE) as usize);
+    let edge = |i: usize| {
+        let (x, y) = (i % gw.max(1), i / gw.max(1));
+        x < bx || y < by || x + bx >= gw || y + by >= gh
+    };
+    let mut centre: Vec<Hist> = (0..3).map(|_| Hist::new()).collect();
+    for (i, d) in grid.iter().enumerate() {
+        if !edge(i) && d[0].is_finite() {
+            for (h, v) in centre.iter_mut().zip(d) {
+                h.add(*v);
+            }
+        }
+    }
+    if centre.iter().any(|h| h.count == 0) {
+        return;
+    }
+    let limit: Vec<f32> = centre.iter().map(|h| h.at(0.995) + EDGE_DENSE_MARGIN).collect();
+    let floor: Vec<f32> = centre.iter().map(|h| h.at(0.005) - EDGE_THIN_MARGIN).collect();
+    let dense = |d: &[f32; 3]| d.iter().zip(&limit).any(|(v, l)| *v > *l);
+    let thin = |d: &[f32; 3]| d.iter().zip(&floor).any(|(v, f)| *v < *f);
+    // edge print is small: a large dense area along the edge is the picture's (a bright sky)
+    let finite = grid.iter().filter(|d| d[0].is_finite()).count();
+    let n_dense = grid.iter().enumerate().filter(|(i, d)| edge(*i) && dense(d)).count();
+    let drop_dense = n_dense as f32 <= EDGE_DENSE_MAX_SHARE * finite as f32;
+    // film base is uniform: thin edge samples spread over a range of densities are the picture's
+    // (a dark corner, a gradient)
+    let mut spread = Hist::new();
+    for (i, d) in grid.iter().enumerate() {
+        if edge(i) && thin(d) {
+            spread.add(d[1]);
+        }
+    }
+    let drop_thin = spread.count > 0 && spread.at(0.9) - spread.at(0.1) <= EDGE_THIN_SPREAD;
+    for (i, d) in grid.iter_mut().enumerate() {
+        if edge(i) && ((drop_dense && dense(d)) || (drop_thin && thin(d))) {
+            *d = [f32::NAN; 3];
+        }
+    }
+}
+
 /// Measures `px` (interleaved linear RGB, `w × h`, the whole uncropped photo) inside the border buffer.
 pub fn analyze(px: &[f32], w: usize, h: usize, p: &Params) -> Analysis {
     analyze_with(|i| px.get(i * 3..i * 3 + 3).map(|c| [c[0], c[1], c[2]]), w, h, p)
@@ -271,6 +330,9 @@ pub fn analyze_with(pixel: impl Fn(usize) -> Option<[f32; 3]>, w: usize, h: usiz
     // bare light (sprocket holes, gaps in the film holder) inside the measured area would set the
     // black point far below the film: drop it before measuring
     exclude_bare_light(&mut grid);
+    // and so would the film's rebate around the picture: edge print or a light leak setting white,
+    // bare film base setting black
+    exclude_strip_edges(&mut grid, gw, gh);
     // pass 1: per-channel and mean-density histograms
     let mut hists: Vec<Hist> = (0..4).map(|_| Hist::new()).collect();
     let mut vsum = [0f64; 3];

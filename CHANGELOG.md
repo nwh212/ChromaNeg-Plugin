@@ -4,7 +4,7 @@ Measurements made with one version can need **Measure** again in a later one; th
 "Reference error" is the mean difference from a Negative Lab Pro conversion of the same scan, in
 levels of 255 (see the README).
 
-## 0.12.0
+## 0.12.0 (Measure again, for whole-strip measurements)
 - **ChromaNeg is now ChromaLab.** Only the name changes: the plug-in keeps its ID, so installing
   ChromaLab replaces ChromaNeg, and photos converted with ChromaNeg keep their settings and
   measurements (their Plug-in Filters row may still say "ChromaNeg" until the filter is added again).
@@ -13,7 +13,13 @@ levels of 255 (see the README).
   pale cyan, skin cool, jeans purple). Shared range now gives red a little more contrast, fitted to
   the reference conversions: reference error over fourteen frames 18.8 → 17.6, two leaf-covered Fuji
   400 frames 21.8 → 17.9 and 17.2 → 14.4. A frame dominated by blue sky comes out slightly redder in
-  the sky than before. Measurements from 0.11 still apply.
+  the sky than before.
+- **Measuring the whole strip works**: with the rebate inside the measured area (a large border
+  buffer instead of a crop), its bare film base set black and its edge print or light leaks set
+  white outside the picture's own range, so the result came out flat and pale. Measure now leaves
+  out thin, uniform film base and small, very dense patches along the edges of the measured area;
+  what's inside the picture always counts. Two Fuji 400 frames measured as whole strips (border
+  buffer 17): reference error 44.0 → 16.0 and 27.2 → 15.5. **Measure again** on photos measured that way.
 
 ## 0.11.0
 - **Looks merged into the Film stock menu** (now "Film stock / look"): the stocks, by brand, then

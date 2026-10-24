@@ -247,6 +247,43 @@ fn the_border_preview_shows_until_measured_with_that_border_buffer() {
 }
 
 #[test]
+fn the_strips_rebate_around_the_picture_doesnt_move_black_and_white() {
+    // the grey negative, then the same with a frame of rebate around it: bare film base (thinner
+    // than anything in the picture) and a band of very dense edge print along the top
+    let (w, h) = (200, 120);
+    // the grey negative's columns in a fixed shuffled order: a scene, not a gradient, so its
+    // darkest and brightest parts lie all over it (a gradient puts them at the edges)
+    let ramp = negative(w, h);
+    let order: Vec<usize> = (0..w).map(|x| (x * 73 + 11) % w).collect();
+    let picture: Vec<f32> =
+        (0..h).flat_map(|y| order.iter().flat_map(move |&x| (0..3).map(move |c| (y, x, c)))).map(|(y, x, c)| ramp[(y * w + x) * 3 + c]).collect();
+    let (fw, fh, m) = (w + 60, h + 60, 30);
+    let base = [0.25f32, 0.55, 0.85];
+    let mut strip = Vec::with_capacity(fw * fh * 3);
+    for y in 0..fh {
+        for x in 0..fw {
+            let inside = (m..m + w).contains(&x) && (m..m + h).contains(&y);
+            for c in 0..3 {
+                strip.push(if inside {
+                    picture[((y - m) * w + x - m) * 3 + c]
+                } else if y < 12 && x % 20 < 8 {
+                    10f32.powf(-(base[c] + 2.8))
+                } else {
+                    10f32.powf(-(base[c] - 0.08))
+                });
+            }
+        }
+    }
+    let alone = measured(&picture, w, h, json!({"borderBuffer": 0}));
+    let framed = measured(&strip, fw, fh, json!({"borderBuffer": 0}));
+    let (a, b) = (alone.analysis.unwrap(), framed.analysis.unwrap());
+    for c in 0..3 {
+        assert!((a.lo[c][4] - b.lo[c][4]).abs() < 0.05, "black moved: {} vs {}", a.lo[c][4], b.lo[c][4]);
+        assert!((a.hi[c][3] - b.hi[c][3]).abs() < 0.05, "white moved: {} vs {}", a.hi[c][3], b.hi[c][3]);
+    }
+}
+
+#[test]
 fn sprocket_holes_in_the_measured_area_are_ignored() {
     // the grey negative, then the same film with rows of bare light (transmission 1) added below
     let (w, h) = (200, 100);
